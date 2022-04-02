@@ -30,7 +30,7 @@
     //le max de pages que le script peut aller chercher
     const maxPages = 20;
     //le nombre de pages que le script va charger pour voir si les messages de la page courante sont cités. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
-    let nbPageATest = 20;
+    let nbPageATest = 10;
     if (localStorage.getItem('quoted-pages') != null && parseInt(localStorage.getItem('quoted-pages')) == localStorage.getItem('quoted-pages'))
         nbPageATest = Math.max(1, Math.min(Math.abs(localStorage.getItem('quoted-pages')), maxPages));
 
