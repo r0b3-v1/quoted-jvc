@@ -6,9 +6,10 @@
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
 // @icon         https://i.imgur.com/voSoOfb.png
+// @resource
 // @grant        none
 // ==/UserScript==
-(async function() {
+(async function () {
     /*
     notes: ce script fonctionne mais a quelques défauts :
     - parfois lent à charger
@@ -20,208 +21,222 @@
     
     Remarque : sont prises en compte les premières citations seulement, si le message est imbriqué dans des couches de citations, il ne sera pas retenu
     */
-    
-        'use strict';
-        if (getMessages().length ==0 || window.location.pathname.includes('/message')) return;
-        displayLoading();
-        //le nombre de pages que le script va charger pour voir si les messages de la page courante sont cités. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
-        const nbPageATest = 20;
-    
-        //liste des messages de la page courante
-        const messagesIndex = buildMessages();
-    
-        //on récupère les relations dans la page courante et on initialise le tableau avec
-        let pages = [{page:0, matches:processMessages(document)}];
-    
-        //pour chaque page on va récupérer son contenu puis faire les relations également, et mettre le résultat dans le tableau
-        for(let np of nextPages()){
-            await fetchPage(np.url).then((res)=>{pages.push({page:np.page, matches:processMessages(res)})});
-        };
-    
-        //on termine en affichant les liens dans la page courante
-        createLinks(mergeAll(pages));
-    
-        //affiche un message de chargement sur les messages qui sera retiré quand tout aura été chargé
-        function displayLoading(){
-            let messages = getMessages();
-    
-            messages.forEach(msg => {
-                msg.querySelector('.bloc-header').style.height = '5rem'
-                let loading = document.createElement('div');
-                loading.classList.add('loading-citations');
-                loading.innerHTML = 'Chargement des citations...';
-    
-                let header = msg.querySelector('.bloc-header .bloc-date-msg');
-                header.insertBefore(loading, header.firstChild);
-    
+
+    'use strict';
+    if (getMessages().length == 0 || window.location.pathname.includes('/message')) return;
+    displayLoading();
+    //le nombre de pages que le script va charger pour voir si les messages de la page courante sont cités. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
+    const nbPageATest = 20;
+
+    //liste des messages de la page courante
+    const messagesIndex = buildMessages();
+
+    //on récupère les relations dans la page courante et on initialise le tableau avec
+    let pages = [{ page: 0, matches: processMessages(document) }];
+
+    //pour chaque page on va récupérer son contenu puis faire les relations également, et mettre le résultat dans le tableau
+    for (let np of nextPages()) {
+        await fetchPage(np.url).then((res) => { pages.push({ page: np.page, matches: processMessages(res) }) });
+    };
+
+    //on termine en affichant les liens dans la page courante
+    createLinks(mergeAll(pages));
+
+    //----------------------------------------------POUR L'AFFICHAGE DES OPTIONS--------------------------------------------------------
+
+    optionButton();
+    function optionButton() {
+        const bloc = document.querySelector('.bloc-pre-right');
+        let button = document.createElement('button');
+        button.classList.add('btn', 'btn-actu-new-list-forum', 'btn-actualiser-forum');
+        button.innerHTML = 'Quoted Options';
+        bloc.insertBefore(button, bloc.firstChild);
+    }
+
+    //------------------------------------------------LOGIQUE DU SCRIPT-----------------------------------------------------------------
+
+    //affiche un message de chargement sur les messages qui sera retiré quand tout aura été chargé
+    function displayLoading() {
+        let messages = getMessages();
+
+        messages.forEach(msg => {
+            msg.querySelector('.bloc-header').style.height = '5rem'
+            let loading = document.createElement('div');
+            loading.classList.add('loading-citations');
+            loading.innerHTML = 'Chargement des citations...';
+
+            let header = msg.querySelector('.bloc-header .bloc-date-msg');
+            header.insertBefore(loading, header.firstChild);
+
+        });
+    }
+
+    //parcourt la map passée en paramètre et pour chaque clé (message de la page courante), appelle la méthode pour ajouter la ou les citation(s) en valeur. Supprime également les messages de chargement
+    function createLinks(correspondances) {
+        correspondances.forEach((v, k) => {
+            appendCitation(k, v);
+        });
+        let loadings = document.querySelectorAll('.loading-citations');
+        for (let ele of loadings) { ele.remove() }
+        console.log('Messages chargés');
+    }
+
+    //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre
+    function appendCitation(original, msgsC) {
+        original.querySelector('.bloc-header').style.height = '5rem';
+        let header = original.querySelector('.bloc-header .bloc-date-msg');
+        const blocC = document.createElement('div');
+        blocC.classList.add('msg-citations');
+        blocC.innerHTML = 'Message cité ' + msgsC.length + ' fois : ';
+        header.insertBefore(blocC, header.firstChild);
+        let count = 1;
+        msgsC.forEach(msg => {
+            blocC.innerHTML += `<a href="${generateLink(extractId(msg.msg), msg.page)}">${extractAuthor(msg.msg)}${(msg.page != 0) ? '(p' + msg.page + ')' : ''}</a>` + ((count++ != msgsC.length) ? ', ' : '');
+        });
+    }
+
+    //génère le lien pour le post sur la page en fonction du numéro de la page donnée et de l'id du post 
+    function generateLink(id, page) {
+        let reg = /(.*forums\/\d*-\d*-\d*-)(\d*)(.*)/gm;
+        let url = "https://www.jeuxvideo.com" + window.location.pathname;
+        if (page == 0)
+            return url + "#post_" + id;
+        return url.replace(reg, "$1" + page + "$3") + "#post_" + id;
+    }
+
+    //fonction qui prend un tableau de maps en argument et les merge toutes ensemble : Map
+    function mergeAll(maps) {
+        maps.forEach(obj => {
+            obj.matches.forEach((arrayV, k) => {
+                obj.matches.set(k, arrayV.map((msg) => { return { page: obj.page, msg: msg } }));
             });
+        });
+        let init = maps[0].matches;
+        for (let i = 1; i < maps.length; i++) {
+            init = mergeMaps(init, maps[i].matches, maps[i].page);
         }
-    
-        //parcourt la map passée en paramètre et pour chaque clé (message de la page courante), appelle la méthode pour ajouter la ou les citation(s) en valeur. Supprime également les messages de chargement
-        function createLinks(correspondances){
-            correspondances.forEach((v,k) =>{
-                appendCitation(k,v);
-            });
-            let loadings = document.querySelectorAll('.loading-citations');
-            for (let ele of loadings) {ele.remove()}
-            console.log('Messages chargés');
-        }
-    
-        //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre
-        function appendCitation(original, msgsC){
-             original.querySelector('.bloc-header').style.height = '5rem';
-            let header = original.querySelector('.bloc-header .bloc-date-msg');
-            const blocC = document.createElement('div');
-            blocC.classList.add('msg-citations');
-            blocC.innerHTML = 'Message cité ' + msgsC.length + ' fois : ';
-            header.insertBefore(blocC, header.firstChild);
-            let count = 1;
-            msgsC.forEach(msg => {
-                blocC.innerHTML += `<a href="${generateLink(extractId(msg.msg), msg.page)}">${extractAuthor(msg.msg)}${(msg.page!=0)? '(p'+msg.page+')' : ''}</a>` + ((count++ != msgsC.length)? ', ' : '');
-            });
-        }
-    
-        function generateLink(id, page){
-            let reg = /(.*forums\/\d*-\d*-\d*-)(\d*)(.*)/gm;
-            let url = "https://www.jeuxvideo.com"+window.location.pathname;
-            if (page == 0)
-                return url + "#post_"+id;
-            return url.replace(reg, "$1"+page+"$3")+"#post_"+id;
-        }
-    
-        //fonction qui prend un tableau de maps en argument et les merge toutes ensemble : Map
-        function mergeAll(maps){
-            maps.forEach(obj => {
-                obj.matches.forEach((arrayV,k)=>{
-                    obj.matches.set(k,arrayV.map((msg) => { return {page:obj.page , msg:msg} }));
-                });
-            });
-            let init = maps[0].matches;
-            for(let i = 1; i<maps.length; i++){
-                init = mergeMaps(init, maps[i].matches, maps[i].page);
+
+        return init;
+    }
+
+    //fonction qui fusionne deux map en une seule, en concaténant les tableaux quand les maps ont la même clé : Map
+    function mergeMaps(mapA, mapB, page = 0) {
+
+        let myMap = new Map([...mapA]);
+        mapB.forEach((v, k) => {
+            if (myMap.has(k)) {
+                let arr = [...myMap.get(k)];
+                arr.push(...v);
+                myMap.set(k, arr);
             }
-    
-            return init;
-        }
-    
-        //fonction qui fusionne deux map en une seule, en concaténant les tableaux quand les maps ont la même clé : Map
-        function mergeMaps(mapA, mapB, page=0){
-    
-            let myMap = new Map([...mapA]);
-            mapB.forEach((v,k)=>{
-                if(myMap.has(k)){
-                    let arr = [...myMap.get(k)];
-                    arr.push(...v);
-                    myMap.set(k,arr);
-                }
-                else{
-                    myMap.set(k,[...v]);
-                }
-            });
-            return myMap;
-        }
-    
-        //parcourt les messages de la page donnée, s'ils contiennent une citation alors on récupère sa date puis on vérifie dans le Map si elle correspond à un message. Si c'est le cas, on ajoute le message
-        function processMessages(page=document){
-            let messages = getMessages(page);
-            let matches = new Map();
-            messages.forEach(msg => {
-                if(msg.querySelector('blockquote')!=null){
-                    let dates = getQuotedMsgDate(msg);
-                    messagesIndex.forEach((msgIValue, msgIKey) => {
-                        if(dates.includes(msgIValue)){
-                            if (!matches.has(msgIKey)) matches.set(msgIKey, [msg]);
-                            else {
-                                let arr = matches.get(msgIKey);
-                                arr.push(msg);
-                                matches.set(msgIKey, arr);
-                            }
+            else {
+                myMap.set(k, [...v]);
+            }
+        });
+        return myMap;
+    }
+
+    //parcourt les messages de la page donnée, s'ils contiennent une citation alors on récupère sa date puis on vérifie dans le Map si elle correspond à un message. Si c'est le cas, on ajoute le message
+    function processMessages(page = document) {
+        let messages = getMessages(page);
+        let matches = new Map();
+        messages.forEach(msg => {
+            if (msg.querySelector('blockquote') != null) {
+                let dates = getQuotedMsgDate(msg);
+                messagesIndex.forEach((msgIValue, msgIKey) => {
+                    if (dates.includes(msgIValue)) {
+                        if (!matches.has(msgIKey)) matches.set(msgIKey, [msg]);
+                        else {
+                            let arr = matches.get(msgIKey);
+                            arr.push(msg);
+                            matches.set(msgIKey, arr);
                         }
-                    });
-                }
-            });
-            return matches;
-        }
-    
-        //recupère les dates des messages cités dans le message : array
-        function getQuotedMsgDate(message){
-            let firstQuotes = Array.prototype.slice.call(message.querySelectorAll('.txt-msg > .blockquote-jv'));
-            let reg = /\d{2}\s\w+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm;
-            let dates = firstQuotes.map((quote)=>{
-                if (quote.querySelector('p') == null) return '';
-                let test = quote.querySelector('p').textContent.match(reg);
-                if (test != null) return test[0];
-            });
-    
-            return dates;
-        }
-    
-        //renvoie les messages contenus par l'élément passé en paramètre : array
-        function getMessages(element=document){
-            return Array.prototype.slice.call(element.querySelectorAll('.bloc-message-forum:not(.msg-supprime)'));
-        }
-    
-        //crée un dictionnaire contenant en index les messages de la page courante et en valeur leurs dates : Map
-        function buildMessages(){
-            let messages = document.querySelectorAll('.bloc-message-forum:not(.msg-supprime)'); //on ignore les messages de jvarchive pour le moment
-            let res = new Map();
-            messages.forEach(msg => {
-                res.set(msg, extractDate(msg));
-            });
-            return res;
-        }
-    
-        //récupère la date du message : string
-        function extractDate(message){
-            let dateLink = message.querySelector('.bloc-header .bloc-date-msg a');
-            if (dateLink != null)
-                return dateLink.textContent;
-            else
-                return '';
-        }
-    
-        //récupère l'id du message passé en paramètre : string
-        function extractId(message){
-            return message.getAttribute('data-id');
-        }
-    
-        //récupère le pseudo de l'auteur du message : string
-        function extractAuthor(message){
-            return message.querySelector('.bloc-pseudo-msg').textContent;
-        }
-    
-        //crée un élément en fonction de la chaîne donnée : HTMLElement
-        function createElementFromString(htmlString){
-          var div = document.createElement('div');
-            div.innerHTML = htmlString.trim();
-    
-            return div;
-        }
-    
-        //va chercher la page donnée en paramètre : string
-        async function fetchPage(url){
-            let response = await fetch(url);
-            let texte = await response.text();
-            return createElementFromString(texte);
-        }
-    
-        //retourne un tableau contenant les url de toutes les pages suivantes du topic : array
-        function nextPages(max=nbPageATest){
-            let avantDernierSpan = document.querySelector('.bloc-liste-num-page span:nth-last-child(2)');
-            let maxPages = parseInt(document.querySelector('.bloc-liste-num-page span:last-child').textContent);
-            if (isNaN(maxPages)){
-                maxPages = parseInt(avantDernierSpan.textContent);
+                    }
+                });
             }
-            let currentPage = window.location.pathname;
-            let pagesIndexed = [];
-            let splited = currentPage.split('-');
-            let currentId = parseInt(splited[3]);
-            let nbPagesAParcourir = Math.min(maxPages, currentId + max);
-            for(let i=currentId; i<nbPagesAParcourir;i++){
-                splited[3] = ++currentId;
-                pagesIndexed.push({page: currentId , url: splited.join('-')});
-            }
-            return pagesIndexed;
+        });
+        return matches;
+    }
+
+    //recupère les dates des messages cités dans le message : array
+    function getQuotedMsgDate(message) {
+        let firstQuotes = Array.prototype.slice.call(message.querySelectorAll('.txt-msg > .blockquote-jv'));
+        let reg = /\d{2}\s\w+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm;
+        let dates = firstQuotes.map((quote) => {
+            if (quote.querySelector('p') == null) return '';
+            let test = quote.querySelector('p').textContent.match(reg);
+            if (test != null) return test[0];
+        });
+
+        return dates;
+    }
+
+    //renvoie les messages contenus par l'élément passé en paramètre : array
+    function getMessages(element = document) {
+        return Array.prototype.slice.call(element.querySelectorAll('.bloc-message-forum:not(.msg-supprime)'));
+    }
+
+    //crée un dictionnaire contenant en index les messages de la page courante et en valeur leurs dates : Map
+    function buildMessages() {
+        let messages = document.querySelectorAll('.bloc-message-forum:not(.msg-supprime)'); //on ignore les messages de jvarchive pour le moment
+        let res = new Map();
+        messages.forEach(msg => {
+            res.set(msg, extractDate(msg));
+        });
+        return res;
+    }
+
+    //récupère la date du message : string
+    function extractDate(message) {
+        let dateLink = message.querySelector('.bloc-header .bloc-date-msg a');
+        if (dateLink != null)
+            return dateLink.textContent;
+        else
+            return '';
+    }
+
+    //récupère l'id du message passé en paramètre : string
+    function extractId(message) {
+        return message.getAttribute('data-id');
+    }
+
+    //récupère le pseudo de l'auteur du message : string
+    function extractAuthor(message) {
+        return message.querySelector('.bloc-pseudo-msg').textContent;
+    }
+
+    //crée un élément en fonction de la chaîne donnée : HTMLElement
+    function createElementFromString(htmlString) {
+        var div = document.createElement('div');
+        div.innerHTML = htmlString.trim();
+
+        return div;
+    }
+
+    //va chercher la page donnée en paramètre : string
+    async function fetchPage(url) {
+        let response = await fetch(url);
+        let texte = await response.text();
+        return createElementFromString(texte);
+    }
+
+    //retourne un tableau contenant les url de toutes les pages suivantes du topic : array
+    function nextPages(max = nbPageATest) {
+        let avantDernierSpan = document.querySelector('.bloc-liste-num-page span:nth-last-child(2)');
+        let maxPages = parseInt(document.querySelector('.bloc-liste-num-page span:last-child').textContent);
+        if (isNaN(maxPages)) {
+            maxPages = parseInt(avantDernierSpan.textContent);
         }
-    
-    })();
+        let currentPage = window.location.pathname;
+        let pagesIndexed = [];
+        let splited = currentPage.split('-');
+        let currentId = parseInt(splited[3]);
+        let nbPagesAParcourir = Math.min(maxPages, currentId + max);
+        for (let i = currentId; i < nbPagesAParcourir; i++) {
+            splited[3] = ++currentId;
+            pagesIndexed.push({ page: currentId, url: splited.join('-') });
+        }
+        return pagesIndexed;
+    }
+
+})();
