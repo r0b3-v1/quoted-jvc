@@ -1,3 +1,10 @@
-.test{
-    color:red;
+:root{
+    --quoted-main-color : rgb(52, 151, 27);
+}
+
+.quoted-btn{
+    border: .0625rem solid var(--quoted-main-color);
+    background: var(--quoted-main-color);
+    color: #fff;
+    font-size: .75rem;
 }
