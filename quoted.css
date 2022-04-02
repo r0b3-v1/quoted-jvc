@@ -1,5 +1,6 @@
 :root{
     --quoted-main-color : rgb(52, 151, 27);
+    --quoted-main-color-hover : rgb(43, 112, 26);
 }
 
 .quoted-btn{
@@ -7,4 +8,12 @@
     background: var(--quoted-main-color);
     color: #fff;
     font-size: .75rem;
+    height: 1.75rem;
+    line-height: 0;
+    font-weight: 600;
+}
+
+.quoted-btn:hover{
+    color: #fff;
+    background: var(--quoted-main-color-hover);
 }
