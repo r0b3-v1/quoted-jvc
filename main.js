@@ -2,10 +2,11 @@
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
 // @version      0.2
-// @description  try to take over the world!
+// @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
-// @icon         https://i.imgur.com/voSoOfb.png
+// @icon         https://i.imgur.com/81NbMHq.png
+// @license      MIT
 // @resource     CSS https://pastebin.com/raw/fMWAQHTw
 // @grant        GM_getResourceText
 // @grant        GM_addStyle
@@ -32,6 +33,8 @@
     let nbPageATest = 20;
     if (localStorage.getItem('quoted-pages') != null && parseInt(localStorage.getItem('quoted-pages')) == localStorage.getItem('quoted-pages'))
         nbPageATest = Math.max(1, Math.min(Math.abs(localStorage.getItem('quoted-pages')), maxPages));
+
+    let nbPageExploreesTotal = 0;
 
     //liste des messages de la page courante
     const messagesIndex = buildMessages();
@@ -66,7 +69,7 @@
         let button = createElementFromString(btnString).firstChild;
         button.addEventListener("click", () => {
             const modal = document.querySelector('#quoted-options');
-            if (modal.style.display == 'none')
+            if (modal.style.display != 'flex')
                 modal.style.display = 'flex';
             else
                 modal.style.display = 'none';
@@ -127,7 +130,7 @@
         });
         let loadings = document.querySelectorAll('.loading-citations');
         for (let ele of loadings) { ele.remove() }
-        console.log('Messages chargés (' + nbPageATest + ' pages explorées)');
+        console.log('Messages chargés (' + nbPageExploreesTotal + ' page(s) explorée(s))');
     }
 
     //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre
@@ -294,6 +297,7 @@
             splited[3] = ++currentId;
             pagesIndexed.push({ page: currentId, url: splited.join('-') });
         }
+        nbPageExploreesTotal = pagesIndexed.length + 1;
         return pagesIndexed;
     }
 
