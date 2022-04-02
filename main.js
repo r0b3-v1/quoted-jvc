@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Quoted
+// @name         Quoted 
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  try to take over the world!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -23,7 +23,6 @@
     
         'use strict';
         if (getMessages().length ==0 || window.location.pathname.includes('/message')) return;
-    
         displayLoading();
         //le nombre de pages que le script va charger pour voir si les messages de la page courante sont cités. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
         const nbPageATest = 20;
@@ -32,11 +31,11 @@
         const messagesIndex = buildMessages();
     
         //on récupère les relations dans la page courante et on initialise le tableau avec
-        let pages = [processMessages(document)];
+        let pages = [{page:0, matches:processMessages(document)}];
     
         //pour chaque page on va récupérer son contenu puis faire les relations également, et mettre le résultat dans le tableau
         for(let np of nextPages()){
-            await fetchPage(np).then((res)=>{ pages.push(processMessages(res))});
+            await fetchPage(np.url).then((res)=>{pages.push({page:np.page, matches:processMessages(res)})});
         };
     
         //on termine en affichant les liens dans la page courante
@@ -60,7 +59,6 @@
     
         //parcourt la map passée en paramètre et pour chaque clé (message de la page courante), appelle la méthode pour ajouter la ou les citation(s) en valeur. Supprime également les messages de chargement
         function createLinks(correspondances){
-    
             correspondances.forEach((v,k) =>{
                 appendCitation(k,v);
             });
@@ -79,22 +77,36 @@
             header.insertBefore(blocC, header.firstChild);
             let count = 1;
             msgsC.forEach(msg => {
-                blocC.innerHTML += `<a target="_blank" href="https://www.jeuxvideo.com/forums/message/${extractId(msg)}">${extractAuthor(msg)}</a>` + ((count++ != msgsC.length)? ', ' : '');
-    
+                blocC.innerHTML += `<a href="${generateLink(extractId(msg.msg), msg.page)}">${extractAuthor(msg.msg)}(p${msg.page})</a>` + ((count++ != msgsC.length)? ', ' : '');
             });
+        }
+    
+        function generateLink(id, page){
+            let reg = /(.*forums\/\d*-\d*-\d*-)(\d*)(.*)/gm;
+            let url = "https://www.jeuxvideo.com"+window.location.pathname;
+            if (page == 0)
+                return url + "#post_"+id;
+            return url.replace(reg, "$1"+page+"$3")+"#post_"+id;
         }
     
         //fonction qui prend un tableau de maps en argument et les merge toutes ensemble : Map
         function mergeAll(maps){
-            let init = maps[0];
+            maps.forEach(obj => {
+                obj.matches.forEach((arrayV,k)=>{
+                    obj.matches.set(k,arrayV.map((msg) => { return {page:obj.page , msg:msg} }));
+                });
+            });
+            let init = maps[0].matches;
             for(let i = 1; i<maps.length; i++){
-                init = mergeMaps(init, maps[i]);
+                init = mergeMaps(init, maps[i].matches, maps[i].page);
             }
+    
             return init;
         }
     
         //fonction qui fusionne deux map en une seule, en concaténant les tableaux quand les maps ont la même clé : Map
-        function mergeMaps(mapA, mapB){
+        function mergeMaps(mapA, mapB, page=0){
+    
             let myMap = new Map([...mapA]);
             mapB.forEach((v,k)=>{
                 if(myMap.has(k)){
@@ -201,15 +213,15 @@
                 maxPages = parseInt(avantDernierSpan.textContent);
             }
             let currentPage = window.location.pathname;
-            let pagesUrls = [];
+            let pagesIndexed = [];
             let splited = currentPage.split('-');
             let currentId = parseInt(splited[3]);
             let nbPagesAParcourir = Math.min(maxPages, currentId + max);
             for(let i=currentId; i<nbPagesAParcourir;i++){
                 splited[3] = ++currentId;
-                pagesUrls.push(splited.join('-'));
+                pagesIndexed.push({page: currentId , url: splited.join('-')});
             }
-            return pagesUrls;
+            return pagesIndexed;
         }
     
     })();
