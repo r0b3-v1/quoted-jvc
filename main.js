@@ -1,13 +1,14 @@
 // ==UserScript==
-// @name         Quoted 
+// @name         Quoted
 // @namespace    http://tampermonkey.net/
 // @version      0.2
 // @description  try to take over the world!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
 // @icon         https://i.imgur.com/voSoOfb.png
-// @resource
-// @grant        none
+// @resource     CSS https://pastebin.com/raw/fMWAQHTw
+// @grant        GM_getResourceText
+// @grant        GM_addStyle
 // ==/UserScript==
 (async function () {
     /*
@@ -18,40 +19,88 @@
     - si votre message est cité mais que pour X raisons la citation n'a pas la date de votre message au bon format, alors le script ne le prendra pas en compte (problématique pour la compatibilité avec certains autres scripts)
     - probablement des bugs pas encore explorés
     - si le message est cité trop de fois alors ça risque de déborder, pas encore fait l'adaptation de la taille du header en fonction du nombre de citations
-    
+
     Remarque : sont prises en compte les premières citations seulement, si le message est imbriqué dans des couches de citations, il ne sera pas retenu
     */
 
     'use strict';
+
     if (getMessages().length == 0 || window.location.pathname.includes('/message')) return;
-    displayLoading();
+    //le max de pages que le script peut aller chercher
+    const maxPages = 20;
     //le nombre de pages que le script va charger pour voir si les messages de la page courante sont cités. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
-    const nbPageATest = 20;
+    let nbPageATest = 20;
+    if (localStorage.getItem('quoted-pages') != null && parseInt(localStorage.getItem('quoted-pages')) == localStorage.getItem('quoted-pages'))
+        nbPageATest = Math.max(1, Math.min(Math.abs(localStorage.getItem('quoted-pages')), maxPages));
 
     //liste des messages de la page courante
     const messagesIndex = buildMessages();
 
-    //on récupère les relations dans la page courante et on initialise le tableau avec
-    let pages = [{ page: 0, matches: processMessages(document) }];
+    //fonction qui lance le script
+    (async function init() {
+        const my_css = GM_getResourceText("CSS");
+        GM_addStyle(my_css);
 
-    //pour chaque page on va récupérer son contenu puis faire les relations également, et mettre le résultat dans le tableau
-    for (let np of nextPages()) {
-        await fetchPage(np.url).then((res) => { pages.push({ page: np.page, matches: processMessages(res) }) });
-    };
+        displayLoading();
 
-    //on termine en affichant les liens dans la page courante
-    createLinks(mergeAll(pages));
+        //on récupère les relations dans la page courante et on initialise le tableau avec
+        let pages = [{ page: 0, matches: processMessages(document) }];
+
+        //pour chaque page on va récupérer son contenu puis faire les relations également, et mettre le résultat dans le tableau
+        for (let np of nextPages()) {
+            await fetchPage(np.url).then((res) => { pages.push({ page: np.page, matches: processMessages(res) }) });
+        };
+
+        //on termine en affichant les liens dans la page courante
+        createLinks(mergeAll(pages));
+    })();
+
 
     //----------------------------------------------POUR L'AFFICHAGE DES OPTIONS--------------------------------------------------------
 
+    modal();
     optionButton();
     function optionButton() {
         const bloc = document.querySelector('.bloc-pre-right');
-        let button = document.createElement('button');
-        button.classList.add('btn', 'btn-actu-new-list-forum', 'btn-actualiser-forum');
-        button.innerHTML = 'Quoted Options';
+        let btnString = `<button class="btn quoted-btn">Quoted Options</button>`
+        let button = createElementFromString(btnString).firstChild;
+        button.addEventListener("click", () => {
+            const modal = document.querySelector('#quoted-options');
+            if (modal.style.display == 'none')
+                modal.style.display = 'flex';
+            else
+                modal.style.display = 'none';
+        });
         bloc.insertBefore(button, bloc.firstChild);
     }
+
+    function modal() {
+        const modalString = `<div id="quoted-options" class="quoted-modal-options">
+        <h3> Options </h3>
+        <div>
+        <label for="quoted-page-input">Nombre de pages à sonder</label>
+        <input type="number" id="quoted-page-input" value="${nbPageATest}" min="1" max="20"></input>
+        </div>
+        <button id="quoted-confirm" class="btn quoted-btn">Valider</button>
+        </div>
+        `;
+        const modal = createElementFromString(modalString).firstChild;
+
+        const bloc = document.querySelector('.bloc-pre-right');
+        document.body.insertBefore(modal, document.body.firstChild);
+        let confirmBtn = document.querySelector('#quoted-confirm');
+        confirmBtn.addEventListener('click', () => {
+            let numberToStore = document.querySelector('#quoted-page-input').value;
+            console.log(numberToStore);
+            if ((numberToStore == null) || (parseInt(numberToStore) != numberToStore) || parseInt(numberToStore) > maxPages)
+                localStorage.setItem('quoted-pages', 10);
+            else
+                localStorage.setItem('quoted-pages', numberToStore);
+            modal.style.display = 'none';
+        });
+
+    }
+
 
     //------------------------------------------------LOGIQUE DU SCRIPT-----------------------------------------------------------------
 
@@ -78,7 +127,7 @@
         });
         let loadings = document.querySelectorAll('.loading-citations');
         for (let ele of loadings) { ele.remove() }
-        console.log('Messages chargés');
+        console.log('Messages chargés (' + nbPageATest + ' pages explorées)');
     }
 
     //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre
@@ -145,6 +194,7 @@
                 let dates = getQuotedMsgDate(msg);
                 messagesIndex.forEach((msgIValue, msgIKey) => {
                     if (dates.includes(msgIValue)) {
+                        //antiPEMT(msgIKey,msg); //ici faire la condition avec antiPEMT pour savoir si le message cité est le bon
                         if (!matches.has(msgIKey)) matches.set(msgIKey, [msg]);
                         else {
                             let arr = matches.get(msgIKey);
@@ -156,6 +206,14 @@
             }
         });
         return matches;
+    }
+
+    //PAS ENCORE FONCTIONNEL Dans l'idée : compare le contenu de la citation avec celui du message original. Si le texte de la citation est contenu au moins en partie dans le message original, le test est validé, sinon non
+    function antiPEMT(originalMsg, msg) {
+        let msgTxt = Array.prototype.slice.call(msg.querySelectorAll('blockquote>p')).map((ele) => ele.textContent).reduce((next, current) => current + " " + next, '');
+        let originalTxt = extractDate(originalMsg) + ' :' + Array.prototype.slice.call(originalMsg.querySelectorAll('.txt-msg>p')).map((ele) => ele.textContent).reduce((next, current) => current + " " + next, '');
+        console.log('CONTENU DE LA CITATION : ' + msgTxt);
+        console.log('CONTENU DU MESSAGE ORIGINAL : ' + originalTxt);
     }
 
     //recupère les dates des messages cités dans le message : array

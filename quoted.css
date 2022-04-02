@@ -1,6 +1,11 @@
 :root{
     --quoted-main-color : rgb(52, 151, 27);
     --quoted-main-color-hover : rgb(43, 112, 26);
+    --quoted-modal-bg : rgb(168, 230, 153);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 .quoted-btn{
@@ -16,4 +21,36 @@
 .quoted-btn:hover{
     color: #fff;
     background: var(--quoted-main-color-hover);
+}
+
+.quoted-modal-options{
+    z-index:5;
+    position:fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%,-50%);
+    background-color: var(--quoted-modal-bg);
+    display: none;
+    flex-direction: column;
+    padding: 1rem;
+    border-radius: 10px;
+    border: 1px solid rgb(38, 151, 10);
+    height: 150px;
+    justify-content: space-around;
+}
+
+#quoted-page-input{
+    background: white;
+    color: black;
+    border-radius: 5px;
+    border: 1px solid;
+}
+
+.quoted-modal-options h3{
+    text-align: center;
+    font-size: 1.5em;
+    margin: 0;
+    border-bottom: 1px solid var(--quoted-main-color);
+    padding-bottom: 5px;
+    color: var(--quoted-main-color);
 }
