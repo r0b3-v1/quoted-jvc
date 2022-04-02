@@ -77,7 +77,7 @@
             header.insertBefore(blocC, header.firstChild);
             let count = 1;
             msgsC.forEach(msg => {
-                blocC.innerHTML += `<a href="${generateLink(extractId(msg.msg), msg.page)}">${extractAuthor(msg.msg)}(p${msg.page})</a>` + ((count++ != msgsC.length)? ', ' : '');
+                blocC.innerHTML += `<a href="${generateLink(extractId(msg.msg), msg.page)}">${extractAuthor(msg.msg)}${(msg.page!=0)? '(p'+msg.page+')' : ''}</a>` + ((count++ != msgsC.length)? ', ' : '');
             });
         }
     
