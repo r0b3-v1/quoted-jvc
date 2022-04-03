@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      0.6.2
+// @version      0.6.7
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -263,7 +263,7 @@
     //recupère les dates des messages cités dans le message : array
     function getQuotedMsgDate(message) {
         let firstQuotes = Array.prototype.slice.call(message.querySelectorAll('.txt-msg > .blockquote-jv'));
-        let reg = /\d{2}\s\w+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm;
+        let reg = /\d{2}\s.+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm;
         let dates = firstQuotes.map((quote) => {
             if (quote.querySelector('p') == null) return '';
             let test = quote.querySelector('p').textContent.match(reg);
