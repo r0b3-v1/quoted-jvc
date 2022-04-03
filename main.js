@@ -255,7 +255,9 @@
         console.log('CONTENU DU MESSAGE ORIGINAL : ' + originalTxt);
         console.log('LES MESSAGES CORRESPONDENT : ' + (originalTxt.includes(msgTxt)||msgTxt.includes(originalTxt)));
         */
-
+       
+        if(msgTxt ==='') return originalTxt==='';
+        if(originalTxt ==='') return msgTxt==='';
         return (originalTxt.includes(msgTxt) || msgTxt.includes(originalTxt));
     }
 
