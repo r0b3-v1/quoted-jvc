@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      0.5.1
+// @version      0.6
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
 // @icon         https://i.imgur.com/81NbMHq.png
-// @license      MIT
+// @license      Exclusive Copyright
 // @resource     CSS https://pastebin.com/raw/fMWAQHTw
 // @grant        GM_getResourceText
 // @grant        GM_addStyle
@@ -16,7 +16,6 @@
     notes: ce script fonctionne mais a quelques défauts :
     - parfois lent à charger
     - il se base sur la date des messages contenue (ou pas) dans les citations, si celle-ci est modifiée ça marche pas.
-    - en cas de PEMT, il risque de faire de la merde
     - si votre message est cité mais que pour X raisons la citation n'a pas la date de votre message au bon format, alors le script ne le prendra pas en compte (problématique pour la compatibilité avec certains autres scripts)
     - probablement des bugs pas encore explorés
     - si le message est cité trop de fois alors ça risque de déborder, pas encore fait l'adaptation de la taille du header en fonction du nombre de citations
@@ -25,8 +24,8 @@
     */
 
     'use strict';
-
-    if (getMessages().length == 0 || window.location.pathname.includes('/message')) return;
+    const currentPageMessages = getMessages();
+    if (currentPageMessages.length == 0 || window.location.pathname.includes('/message')) return;
     //le max de pages que le script peut aller chercher
     const maxPages = 20;
     //le nombre de pages que le script va charger pour voir si les messages de la page courante sont cités. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
@@ -38,6 +37,11 @@
 
     //liste des messages de la page courante
     const messagesIndex = buildMessages();
+
+    //les pemts qui ont eu lieu sur la page
+    const pemts = initPEMT();
+
+
 
     //fonction qui lance le script
     (async function init() {
@@ -119,11 +123,24 @@
 
     //------------------------------------------------LOGIQUE DU SCRIPT-----------------------------------------------------------------
 
+    //récupère les dates de tous les posts qui ont fait un pemt et les renvoie dans un tableau : array
+    function initPEMT() {
+        let sorted = [...messagesIndex.entries()].sort();
+        let entries = [];
+        for (let i = 0; i < sorted.length - 1; i++) {
+            if (sorted[i][1] === sorted[i + 1][1]) {
+                entries.push(sorted[i][1]);
+            }
+        }
+
+        return [...new Set(entries)];
+    }
+
+
     //affiche un message de chargement sur les messages qui sera retiré quand tout aura été chargé
     function displayLoading() {
-        let messages = getMessages();
 
-        messages.forEach(msg => {
+        currentPageMessages.forEach(msg => {
             msg.querySelector('.bloc-header').style.height = '5rem'
             let loading = document.createElement('div');
             loading.classList.add('loading-citations');
@@ -209,12 +226,14 @@
                 let dates = getQuotedMsgDate(msg);
                 messagesIndex.forEach((msgIValue, msgIKey) => {
                     if (dates.includes(msgIValue)) {
-                        //antiPEMT(msgIKey,msg); //ici faire la condition avec antiPEMT pour savoir si le message cité est le bon
-                        if (!matches.has(msgIKey)) matches.set(msgIKey, [msg]);
-                        else {
-                            let arr = matches.get(msgIKey);
-                            arr.push(msg);
-                            matches.set(msgIKey, arr);
+                        const quoteFromPEMT = (dates.filter(value => pemts.includes(value)).length > 0);//on teste si les dates du message viennent de pemt, si c'est le cas on applique l'algo de filtrage
+                        if (!quoteFromPEMT || (quoteFromPEMT && antiPEMT(msgIKey, msg))) {
+                            if (!matches.has(msgIKey)) matches.set(msgIKey, [msg]);
+                            else {
+                                let arr = matches.get(msgIKey);
+                                arr.push(msg);
+                                matches.set(msgIKey, arr);
+                            }
                         }
                     }
                 });
@@ -223,12 +242,21 @@
         return matches;
     }
 
-    //PAS ENCORE FONCTIONNEL Dans l'idée : compare le contenu de la citation avec celui du message original. Si le texte de la citation est contenu au moins en partie dans le message original, le test est validé, sinon non
+    //compare le contenu de la citation avec celui du message original. Si le texte de la citation est contenu dans le message original ou inversement, le test est validé, sinon non
     function antiPEMT(originalMsg, msg) {
-        let msgTxt = Array.prototype.slice.call(msg.querySelectorAll('blockquote>p')).map((ele) => ele.textContent).reduce((next, current) => current + " " + next, '');
+        let msgTxt = Array.prototype.slice.call(msg.querySelectorAll('.txt-msg>blockquote>p')).map((ele) => ele.textContent).reduce((next, current) => current + " " + next, '');
         let originalTxt = extractDate(originalMsg) + ' :' + Array.prototype.slice.call(originalMsg.querySelectorAll('.txt-msg>p')).map((ele) => ele.textContent).reduce((next, current) => current + " " + next, '');
+        msgTxt = msgTxt.replace(/\s/gm, "").replace(/(Le)?\d{2}\w+\d{4}à\d{2}:\d{2}:\d{2}:?(.*aécrit:)?/gm, "").replace(/⭐/gm, '').replace(/ouvrir/gm, '');
+        originalTxt = originalTxt.replace(/\s/gm, "").replace(/(Le)?\d{2}\w+\d{4}à\d{2}:\d{2}:\d{2}:?(.*aécrit:)?/gm, "").replace(/⭐/gm, '').replace(/ouvrir/gm, '');
+
+        /*
+        console.log('____________________________________________________________________________________________');
         console.log('CONTENU DE LA CITATION : ' + msgTxt);
         console.log('CONTENU DU MESSAGE ORIGINAL : ' + originalTxt);
+        console.log('LES MESSAGES CORRESPONDENT : ' + (originalTxt.includes(msgTxt)||msgTxt.includes(originalTxt)));
+        */
+
+        return (originalTxt.includes(msgTxt) || msgTxt.includes(originalTxt));
     }
 
     //recupère les dates des messages cités dans le message : array
