@@ -61,23 +61,21 @@
 
     //----------------------------------------------POUR L'AFFICHAGE DES OPTIONS--------------------------------------------------------
 
-    modal();
-    optionButton();
-    function optionButton() {
+    modal(toggleModal);
+    optionButton(toggleModal);
+    function optionButton(toggleFunction) {
         const bloc = document.querySelector('.bloc-pre-right');
         let btnString = `<button class="btn quoted-btn">Quoted Options</button>`
         let button = createElementFromString(btnString).firstChild;
         button.addEventListener("click", () => {
             const modal = document.querySelector('#quoted-options');
-            if (modal.style.display != 'flex')
-                modal.style.display = 'flex';
-            else
-                modal.style.display = 'none';
+            toggleFunction(modal);
+
         });
         bloc.insertBefore(button, bloc.firstChild);
     }
 
-    function modal() {
+    function modal(toggleFunction) {
         const modalString = `<div id="quoted-options" class="quoted-modal-options">
         <h3> Options </h3>
         <div>
@@ -90,20 +88,34 @@
         const modal = createElementFromString(modalString).firstChild;
 
         const bloc = document.querySelector('.bloc-pre-right');
-        document.body.insertBefore(modal, document.body.firstChild);
+        const mainCol = document.querySelector('#forum-main-col');
+        mainCol.style.position = 'relative';
+
+        mainCol.insertBefore(modal, document.querySelector('#forum-main-col>div:nth-last-child(1)'));
         let confirmBtn = document.querySelector('#quoted-confirm');
         confirmBtn.addEventListener('click', () => {
             let numberToStore = document.querySelector('#quoted-page-input').value;
-            console.log(numberToStore);
             if ((numberToStore == null) || (parseInt(numberToStore) != numberToStore) || parseInt(numberToStore) > maxPages)
                 localStorage.setItem('quoted-pages', 10);
             else
                 localStorage.setItem('quoted-pages', numberToStore);
-            modal.style.display = 'none';
+            toggleFunction(modal);
         });
 
     }
 
+    function toggleModal(modal) {
+        if (modal.style.display != 'flex') {
+            modal.style.display = 'flex';
+            modal.classList.remove('quoted-invisible');
+            modal.classList.add('quoted-visible');
+        }
+        else {
+            modal.classList.remove('quoted-visible');
+            modal.classList.add('quoted-invisible');
+            setTimeout(() => { modal.style.display = 'none'; }, 500);
+        }
+    }
 
     //------------------------------------------------LOGIQUE DU SCRIPT-----------------------------------------------------------------
 
@@ -147,7 +159,7 @@
         });
     }
 
-    //génère le lien pour le post sur la page en fonction du numéro de la page donnée et de l'id du post 
+    //génère le lien pour le post sur la page en fonction du numéro de la page donnée et de l'id du post
     function generateLink(id, page) {
         let reg = /(.*forums\/\d*-\d*-\d*-)(\d*)(.*)/gm;
         let url = "https://www.jeuxvideo.com" + window.location.pathname;
@@ -234,7 +246,7 @@
 
     //renvoie les messages contenus par l'élément passé en paramètre : array
     function getMessages(element = document) {
-        return Array.prototype.slice.call(element.querySelectorAll('.bloc-message-forum:not(.msg-supprime)'));
+        return Array.prototype.slice.call(element.querySelectorAll('.conteneur-messages-pagi .bloc-message-forum:not(.msg-supprime)'));
     }
 
     //crée un dictionnaire contenant en index les messages de la page courante et en valeur leurs dates : Map
