@@ -63,6 +63,10 @@ html {
     color: var(--quoted-main-color);
 }
 
+#forum-main-col .bloc-pre-pagi-forum .bloc-pre-right button{
+	margin-left: 0.3125rem;
+}
+
 @keyframes visible {
     0%{opacity: 0;}
     100%{ opacity: 1;}
