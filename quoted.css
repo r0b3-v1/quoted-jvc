@@ -8,6 +8,10 @@ html {
   scroll-behavior: smooth;
 }
 
+.quoted-color{
+    color:var(--quoted-main-color);
+}
+
 .quoted-btn{
     border: .0625rem solid var(--quoted-main-color);
     background: var(--quoted-main-color);
