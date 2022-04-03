@@ -143,7 +143,7 @@
         currentPageMessages.forEach(msg => {
             msg.querySelector('.bloc-header').style.height = '5rem'
             let loading = document.createElement('div');
-            loading.classList.add('loading-citations');
+            loading.classList.add('loading-citations', 'quoted-color');
             loading.innerHTML = 'Chargement des citations...';
 
             let header = msg.querySelector('.bloc-header .bloc-date-msg');
@@ -167,7 +167,7 @@
         original.querySelector('.bloc-header').style.height = '5rem';
         let header = original.querySelector('.bloc-header .bloc-date-msg');
         const blocC = document.createElement('div');
-        blocC.classList.add('msg-citations');
+        blocC.classList.add('msg-citations', 'quoted-color');
         blocC.innerHTML = 'Message cité ' + msgsC.length + ' fois : ';
         header.insertBefore(blocC, header.firstChild);
         let count = 1;
@@ -255,9 +255,8 @@
         console.log('CONTENU DU MESSAGE ORIGINAL : ' + originalTxt);
         console.log('LES MESSAGES CORRESPONDENT : ' + (originalTxt.includes(msgTxt)||msgTxt.includes(originalTxt)));
         */
-       
-        if(msgTxt ==='') return originalTxt==='';
-        if(originalTxt ==='') return msgTxt==='';
+        if (msgTxt === '') return originalTxt === '';
+        if (originalTxt === '') return msgTxt === '';
         return (originalTxt.includes(msgTxt) || msgTxt.includes(originalTxt));
     }
 
