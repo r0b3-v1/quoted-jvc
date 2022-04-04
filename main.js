@@ -29,7 +29,7 @@
     const currentPageMessages = getMessages();
     if (currentPageMessages.length == 0 || window.location.pathname.includes('/message')) return;
     //le max de pages que le script peut aller chercher
-    const maxPages = 20;
+    const maxPages = 100;
     //le nombre de pages que le script va charger pour voir si les messages de la page courante sont cités. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
     let nbPageATest = 10;
     if (localStorage.getItem('quoted-pages') != null && parseInt(localStorage.getItem('quoted-pages')) == localStorage.getItem('quoted-pages'))
@@ -86,7 +86,7 @@
         <h3> Options </h3>
         <div>
         <label for="quoted-page-input">Nombre de pages à sonder</label>
-        <input type="number" id="quoted-page-input" value="${nbPageATest}" min="1" max="20"></input>
+        <input type="number" id="quoted-page-input" value="${nbPageATest}" min="1" max="${maxPages}"></input>
         </div>
         <button id="quoted-confirm" class="btn quoted-btn">Valider</button>
         </div>
@@ -173,7 +173,6 @@
         header.insertBefore(blocC, header.firstChild);
         let count = 1;
         let links = msgsC.map(msg => { return { link: generateLink(extractId(msg.msg), msg.page), author: extractAuthor(msg.msg), page: ((msg.page != 0) ? ' (page ' + msg.page + ')' : '') } });
-        console.log(createSelect(links));
         createSelect(links).forEach(ele => {
             blocC.append(ele);
         });
