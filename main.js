@@ -70,7 +70,7 @@
     modal(toggleModal);
     optionButton(toggleModal);
     function optionButton(toggleFunction) {
-        const bloc = document.querySelector('.bloc-pre-right');
+        const bloc = document.querySelector('.titre-head-bloc');
         let btnString = `<button class="btn quoted-btn">Quoted Options</button>`
         let button = createElementFromString(btnString).firstChild;
         button.addEventListener("click", () => {
@@ -241,6 +241,14 @@
             }
         });
         return matches;
+    }
+
+    function debug(separator, ...values) {
+        console.log('______________________________________START DEBUG : ' + separator + '_____________________________________________');
+        values.forEach(v => {
+            console.log(v);
+        });
+        console.log('**************************************END DEBUG : ' + separator + '**************************************');
     }
 
     //compare le contenu de la citation avec celui du message original. Si le texte de la citation est contenu dans le message original ou inversement, le test est validé, sinon non
