@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      0.6.9
+// @version      0.8
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -72,7 +72,7 @@
     function optionButton(toggleFunction) {
         const bloc = document.querySelector('.titre-head-bloc');
         let btnString = `<button class="btn quoted-btn">Quoted Options</button>`
-        let button = createElementFromString(btnString).firstChild;
+        let button = createElementFromString(btnString);
         button.addEventListener("click", () => {
             const modal = document.querySelector('#quoted-options');
             toggleFunction(modal);
@@ -91,7 +91,7 @@
         <button id="quoted-confirm" class="btn quoted-btn">Valider</button>
         </div>
         `;
-        const modal = createElementFromString(modalString).firstChild;
+        const modal = createElementFromString(modalString);
 
         const bloc = document.querySelector('.bloc-pre-right');
         const mainCol = document.querySelector('#forum-main-col');
@@ -169,12 +169,34 @@
         let header = original.querySelector('.bloc-header .bloc-date-msg');
         const blocC = document.createElement('div');
         blocC.classList.add('msg-citations', 'quoted-color');
-        blocC.innerHTML = 'Message cité ' + msgsC.length + ' fois : ';
+        blocC.innerHTML = '<span>Message cité ' + msgsC.length + ' fois : </span>';
         header.insertBefore(blocC, header.firstChild);
         let count = 1;
-        msgsC.forEach(msg => {
-            blocC.innerHTML += `<a href="${generateLink(extractId(msg.msg), msg.page)}">${extractAuthor(msg.msg)}${(msg.page != 0) ? '(p' + msg.page + ')' : ''}</a>` + ((count++ != msgsC.length) ? ', ' : '');
+        let links = msgsC.map(msg => { return { link: generateLink(extractId(msg.msg), msg.page), author: extractAuthor(msg.msg), page: ((msg.page != 0) ? ' (page ' + msg.page + ')' : '') } });
+        console.log(createSelect(links));
+        createSelect(links).forEach(ele => {
+            blocC.append(ele);
         });
+    }
+
+    function createSelect(links) {
+        if (links.length == 1) {
+            let link = links[0];
+            return [createElementFromString(`<a href="${link.link}">${link.author}${link.page}</a>`)];
+        }
+        let select = document.createElement('select');
+        select.classList.add('quoted-select');
+        let redir = document.createElement('a');
+        redir.innerText = 'Aller';
+        redir.setAttribute('href', links[0].link);
+        select.addEventListener('change', () => {
+            redir.setAttribute('href', select.options[select.selectedIndex].value);
+        });
+        links.forEach(link => {
+            let option = createElementFromString(`<option value="${link.link}">${link.author}${link.page}</option>`);
+            select.append(option);
+        });
+        return [select, redir];
     }
 
     //génère le lien pour le post sur la page en fonction du numéro de la page donnée et de l'id du post
@@ -300,7 +322,7 @@
     //récupère la date du message : string
     function extractDate(message) {
         let dateLink = message.querySelector('.bloc-header .bloc-date-msg a');
-        let date = message.querySelector('.bloc-date-msg').textContent.replace(/^(\s*)(.*)(\s*)$/, '$2');
+        let date = trimEsc(message.querySelector('.bloc-date-msg').textContent);
         return date;
     }
 
@@ -311,14 +333,18 @@
 
     //récupère le pseudo de l'auteur du message : string
     function extractAuthor(message) {
-        return message.querySelector('.bloc-pseudo-msg').textContent;
+        return trimEsc(message.querySelector('.bloc-pseudo-msg').textContent);
+    }
+
+    function trimEsc(str) {
+        return str.replace(/^(\s*)(.*)(\s*)$/, '$2');
     }
 
     //crée un élément en fonction de la chaîne donnée : HTMLElement
     function createElementFromString(htmlString) {
         var div = document.createElement('div');
         div.innerHTML = htmlString.trim();
-        return div;
+        return div.firstChild;
     }
 
     //va chercher la page donnée en paramètre : string
