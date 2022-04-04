@@ -1,18 +1,18 @@
-:root{
-    --quoted-main-color : rgb(52, 151, 27);
-    --quoted-main-color-hover : rgb(43, 112, 26);
-    --quoted-modal-bg : rgb(168, 230, 153);
+:root {
+    --quoted-main-color: rgb(52, 151, 27);
+    --quoted-main-color-hover: rgb(43, 112, 26);
+    --quoted-modal-bg: rgb(168, 230, 153);
 }
 
 html {
-  scroll-behavior: smooth;
+    scroll-behavior: smooth;
 }
 
-.quoted-color{
-    color:var(--quoted-main-color);
+.quoted-color {
+    color: var(--quoted-main-color);
 }
 
-.quoted-btn{
+.quoted-btn {
     border: .0625rem solid var(--quoted-main-color);
     background: var(--quoted-main-color);
     color: #fff;
@@ -20,17 +20,18 @@ html {
     height: 1.75rem;
     line-height: 0;
     font-weight: 600;
+    float: right;
 }
 
-.quoted-btn:hover{
+.quoted-btn:hover {
     color: #fff;
     background: var(--quoted-main-color-hover);
 }
 
-.quoted-modal-options{
-    z-index:5;
-    position:absolute;
-    right:0;
+.quoted-modal-options {
+    z-index: 5;
+    position: absolute;
+    right: 0;
     background-color: var(--quoted-modal-bg);
     display: none;
     flex-direction: column;
@@ -39,26 +40,26 @@ html {
     border: 1px solid rgb(38, 151, 10);
     height: 150px;
     justify-content: space-around;
-    opacity:0;
+    opacity: 0;
 }
 
-.quoted-visible{
+.quoted-visible {
     animation: visible 0.5s forwards;
 }
 
-.quoted-invisible{
+.quoted-invisible {
     animation: invisible 0.5s forwards;
 }
 
 
-#quoted-page-input{
+#quoted-page-input {
     background: white;
     color: black;
     border-radius: 5px;
     border: 1px solid;
 }
 
-.quoted-modal-options h3{
+.quoted-modal-options h3 {
     text-align: center;
     font-size: 1.5em;
     margin: 0;
@@ -67,16 +68,26 @@ html {
     color: var(--quoted-main-color);
 }
 
-#forum-main-col .bloc-pre-pagi-forum .bloc-pre-right button{
-	margin-left: 0.3125rem;
+#forum-main-col .bloc-pre-pagi-forum .bloc-pre-right button {
+    margin-left: 0.3125rem;
 }
 
 @keyframes visible {
-    0%{opacity: 0;}
-    100%{ opacity: 1;}
+    0% {
+        opacity: 0
+    }
+
+    100% {
+        opacity: 1
+    }
 }
 
 @keyframes invisible {
-    0%{opacity: 1;}
-    100%{ opacity: 0;}
+    0% {
+        opacity: 1
+    }
+
+    100% {
+        opacity: 0
+    }
 }
