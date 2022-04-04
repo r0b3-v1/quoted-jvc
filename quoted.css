@@ -102,8 +102,19 @@ html {
     }
 }
 
+@media screen and (max-width: 999px) {
+
+    .quoted-btn {
+        margin-left: 0.9375rem;
+    }
+}
+
 @media screen and (max-width: 600px) {
     .quoted-select {
         max-width: 100px;
+    }
+
+    #quoted-options {
+        top: 115px;
     }
 }
