@@ -28,7 +28,8 @@ html {
     height: 1.75rem;
     line-height: 0;
     font-weight: 600;
-    float: right;
+    min-width: 6.375rem;
+    margin-bottom: 0.25rem;
 }
 
 .quoted-btn:hover {
@@ -39,7 +40,8 @@ html {
 .quoted-modal-options {
     z-index: 5;
     position: absolute;
-    right: 0;
+    left: 0;
+    top: 80px;
     background-color: var(--quoted-modal-bg);
     display: none;
     flex-direction: column;
@@ -97,5 +99,11 @@ html {
 
     100% {
         opacity: 0
+    }
+}
+
+@media screen and (max-width: 600px) {
+    .quoted-select {
+        max-width: 100px;
     }
 }

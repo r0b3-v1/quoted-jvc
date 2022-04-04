@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      0.8
+// @version      1.0
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -70,15 +70,15 @@
     modal(toggleModal);
     optionButton(toggleModal);
     function optionButton(toggleFunction) {
-        const bloc = document.querySelector('.titre-head-bloc');
-        let btnString = `<button class="btn quoted-btn">Quoted Options</button>`
+        const bloc = document.querySelector('#forum-main-col');
+        let btnString = `<button class="btn quoted-btn">QUOTED</button>`
         let button = createElementFromString(btnString);
         button.addEventListener("click", () => {
             const modal = document.querySelector('#quoted-options');
             toggleFunction(modal);
 
         });
-        bloc.insertBefore(button, bloc.firstChild);
+        bloc.insertBefore(button, bloc.querySelector('.bloc-pre-pagi-forum'));
     }
 
     function modal(toggleFunction) {
@@ -169,7 +169,7 @@
         let header = original.querySelector('.bloc-header .bloc-date-msg');
         const blocC = document.createElement('div');
         blocC.classList.add('msg-citations', 'quoted-color');
-        blocC.innerHTML = '<span>Message cité ' + msgsC.length + ' fois : </span>';
+        blocC.innerHTML = '<span>Cité ' + msgsC.length + ' fois : </span>';
         header.insertBefore(blocC, header.firstChild);
         let count = 1;
         let links = msgsC.map(msg => { return { link: generateLink(extractId(msg.msg), msg.page), author: extractAuthor(msg.msg), page: ((msg.page != 0) ? ' (page ' + msg.page + ')' : '') } });
