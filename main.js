@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      0.6.8
+// @version      0.6.9
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -300,10 +300,8 @@
     //récupère la date du message : string
     function extractDate(message) {
         let dateLink = message.querySelector('.bloc-header .bloc-date-msg a');
-        if (dateLink != null)
-            return dateLink.textContent;
-        else
-            return '';
+        let date = message.querySelector('.bloc-date-msg').textContent.replace(/^(\s*)(.*)(\s*)$/, '$2');
+        return date;
     }
 
     //récupère l'id du message passé en paramètre : string
