@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      0.6.7
+// @version      0.6.8
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -11,6 +11,8 @@
 // @grant        GM_getResourceText
 // @grant        GM_addStyle
 // ==/UserScript==
+
+
 (async function () {
     /*
     notes: ce script fonctionne mais a quelques défauts :
@@ -132,7 +134,6 @@
                 entries.push(sorted[i][1]);
             }
         }
-
         return [...new Set(entries)];
     }
 
@@ -311,7 +312,6 @@
     function createElementFromString(htmlString) {
         var div = document.createElement('div');
         div.innerHTML = htmlString.trim();
-
         return div;
     }
 
@@ -319,7 +319,8 @@
     async function fetchPage(url) {
         let response = await fetch(url);
         let texte = await response.text();
-        return createElementFromString(texte);
+        let parser = new DOMParser();
+        return parser.parseFromString(texte, 'text/html');
     }
 
     //retourne un tableau contenant les url de toutes les pages suivantes du topic : array
