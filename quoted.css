@@ -12,6 +12,14 @@ html {
     color: var(--quoted-main-color);
 }
 
+.quoted-select {
+    background: transparent;
+    color: #f66031;
+    border-radius: 6px;
+    border: 1px solid var(--quoted-main-color);
+    margin-right: 5px;
+}
+
 .quoted-btn {
     border: .0625rem solid var(--quoted-main-color);
     background: var(--quoted-main-color);
