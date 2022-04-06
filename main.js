@@ -81,6 +81,22 @@
         bloc.insertBefore(button, bloc.querySelector('.bloc-pre-pagi-forum'));
     }
 
+    //affiche le modal contenant la citation lorqu'on clique sur le bouton de prévisualiation
+    function previsualize(mO, msgCitation){
+        let clone = msgCitation.cloneNode(true);
+        let div = document.createElement('div');
+        div.classList.add('quoted-modal-citation');
+        const closeBtn = createElementFromString(`<div class="close"><button>X</button></div>`);
+        closeBtn.addEventListener('click', ()=>{
+            div.remove();
+        });
+        div.append(closeBtn);
+        div.append(clone);
+        let header = mO.querySelector('.bloc-header')
+        header.append(div);
+    }
+
+    //modal des options
     function modal(toggleFunction) {
         const modalString = `<div id="quoted-options" class="quoted-modal-options">
         <h3> Options </h3>
@@ -165,7 +181,7 @@
 
     //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre
     function appendCitation(original, msgsC) {
-        original.querySelector('.bloc-header').style.height = '5rem';
+        original.querySelector('.bloc-header').style.height = '5.75rem';
         let header = original.querySelector('.bloc-header .bloc-date-msg');
         const blocC = document.createElement('div');
         blocC.classList.add('msg-citations', 'quoted-color');
@@ -176,16 +192,25 @@
         createSelect(links).forEach(ele => {
             blocC.append(ele);
         });
+        const previewBtn = createElementFromString(`<button class="quoted-btn quoted-preview-btn">Prévisualiser</button>`);
+        previewBtn.addEventListener('click', ()=>{
+            let linkS = original.querySelector('.quoted-goto').getAttribute('href').split('_');
+            let id = linkS[linkS.length-1];
+            previsualize(original, msgsC.filter(msg=>extractId(msg.msg)===id)[0].msg);
+        });
+        blocC.append(previewBtn);
     }
 
+    //crée le select ou le lien pour choisir quelle citation charger
     function createSelect(links) {
         if (links.length == 1) {
             let link = links[0];
-            return [createElementFromString(`<a href="${link.link}">${link.author}${link.page}</a>`)];
+            return [createElementFromString(`<a class="quoted-goto" href="${link.link}">${link.author}${link.page}</a>`)];
         }
         let select = document.createElement('select');
         select.classList.add('quoted-select');
         let redir = document.createElement('a');
+        redir.classList.add('quoted-goto');
         redir.innerText = 'Aller';
         redir.setAttribute('href', links[0].link);
         select.addEventListener('change', () => {

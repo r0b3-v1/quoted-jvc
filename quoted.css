@@ -1,26 +1,74 @@
-:root {
-    --quoted-main-color: rgb(52, 151, 27);
-    --quoted-main-color-hover: rgb(43, 112, 26);
-    --quoted-modal-bg: rgb(168, 230, 153);
+:root{
+    --quoted-main-color : rgb(52, 151, 27);
+    --quoted-main-color-hover : rgb(43, 112, 26);
+    --quoted-modal-bg : rgb(168, 230, 153);
 }
 
 html {
-    scroll-behavior: smooth;
+  scroll-behavior: smooth;
 }
 
-.quoted-color {
-    color: var(--quoted-main-color);
+.quoted-preview-btn{
+	border-radius: 10px;
+    margin-left: 10px;
 }
 
-.quoted-select {
-    background: transparent;
-    color: #f66031;
-    border-radius: 6px;
-    border: 1px solid var(--quoted-main-color);
-    margin-right: 5px;
+.conteneur-message{
+	overflow: visible!important;
 }
 
-.quoted-btn {
+.conteneur-message .bloc-header{
+    overflow: visible;
+    position: relative;
+}
+
+.quoted-color{
+	color:var(--quoted-main-color);
+}
+
+.quoted-modal-citation{
+    position: absolute;
+    z-index: 15;
+    background: white;
+    color : black;
+    border-radius: 10px;
+    border: 2px solid rgba(0,0,0,0.8);
+    box-shadow: -8px 10px 4px 1px rgba(0,0,0,0.5);
+}
+
+.quoted-modal-citation a.bloc-pseudo-msg {
+  color: black;
+}
+
+.quoted-modal-citation .blockquote-jv p {
+  color: #999;
+}
+
+.quoted-modal-citation .close{
+	text-align: right;
+}
+
+.quoted-modal-citation .close button{
+	cursor: pointer;
+    background: #c40707;
+    border: none;
+    border-radius: 5px;
+    width: 30px;
+}
+
+.quoted-modal-citation .close button:hover{
+	background : #ee1212;
+}
+
+.quoted-select{
+     background: transparent;
+     color: #f66031;
+     border-radius: 6px;
+     border: 1px solid var(--quoted-main-color);
+     margin-right: 5px;
+}
+
+.quoted-btn{
     border: .0625rem solid var(--quoted-main-color);
     background: var(--quoted-main-color);
     color: #fff;
@@ -29,18 +77,18 @@ html {
     line-height: 0;
     font-weight: 600;
     min-width: 6.375rem;
-    margin-bottom: 0.25rem;
+	margin-bottom:0.25rem;
 }
 
-.quoted-btn:hover {
+.quoted-btn:hover{
     color: #fff;
     background: var(--quoted-main-color-hover);
 }
 
-.quoted-modal-options {
-    z-index: 5;
-    position: absolute;
-    left: 0;
+.quoted-modal-options{
+    z-index:5;
+    position:absolute;
+    left:0;
     top: 80px;
     background-color: var(--quoted-modal-bg);
     display: none;
@@ -50,26 +98,26 @@ html {
     border: 1px solid rgb(38, 151, 10);
     height: 150px;
     justify-content: space-around;
-    opacity: 0;
+    opacity:0;
 }
 
-.quoted-visible {
+.quoted-visible{
     animation: visible 0.5s forwards;
 }
 
-.quoted-invisible {
+.quoted-invisible{
     animation: invisible 0.5s forwards;
 }
 
 
-#quoted-page-input {
+#quoted-page-input{
     background: white;
     color: black;
     border-radius: 5px;
     border: 1px solid;
 }
 
-.quoted-modal-options h3 {
+.quoted-modal-options h3{
     text-align: center;
     font-size: 1.5em;
     margin: 0;
@@ -78,43 +126,33 @@ html {
     color: var(--quoted-main-color);
 }
 
-#forum-main-col .bloc-pre-pagi-forum .bloc-pre-right button {
-    margin-left: 0.3125rem;
+#forum-main-col .bloc-pre-pagi-forum .bloc-pre-right button{
+	margin-left: 0.3125rem;
 }
 
 @keyframes visible {
-    0% {
-        opacity: 0
-    }
-
-    100% {
-        opacity: 1
-    }
+    0%{opacity: 0}
+    100%{ opacity: 1}
 }
 
 @keyframes invisible {
-    0% {
-        opacity: 1
-    }
+    0%{opacity: 1}
+    100%{ opacity: 0}
+}
 
-    100% {
-        opacity: 0
+@media screen and (max-width: 999px){
+
+    .quoted-btn{
+        margin-left:0.9375rem;
     }
 }
 
-@media screen and (max-width: 999px) {
-
-    .quoted-btn {
-        margin-left: 0.9375rem;
-    }
-}
-
-@media screen and (max-width: 600px) {
-    .quoted-select {
+@media screen and (max-width: 600px){
+    .quoted-select{
         max-width: 100px;
-    }
-
-    #quoted-options {
-        top: 115px;
+	}
+    
+    #quoted-options{
+    	top: 115px;
     }
 }
