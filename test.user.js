@@ -3,6 +3,8 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  test autoupdate
+// @downloadURL  https://github.com/r0b3-v1/quoted-jvc/raw/main/main.user.js
+// @updateURL    https://github.com/r0b3-v1/quoted-jvc/raw/main/main.user.js
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
 // @license      Exclusive Copyright
