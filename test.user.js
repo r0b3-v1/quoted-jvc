@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         testatest
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  test autoupdate
 // @downloadURL  https://github.com/r0b3-v1/quoted-jvc/raw/main/main.user.js
 // @updateURL    https://github.com/r0b3-v1/quoted-jvc/raw/main/main.user.js
@@ -17,3 +17,5 @@
 'use strict';
 
 let i = 'test';
+let jetest = 'coucou';
+console.log('coucou le test fonctionne');
