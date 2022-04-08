@@ -49,6 +49,9 @@
     (async function init() {
         const my_css = GM_getResourceText("CSS");
         GM_addStyle(my_css);
+        messagesIndex.forEach((date,msg) => {
+            msg.querySelector('.bloc-date-msg').append(createElementFromString(`<span style="display:none">Quoted</span>`));
+        });
 
         displayLoading();
 
@@ -86,6 +89,8 @@
         if (mO.querySelector('.quoted-modal-citation') != null)
             mO.querySelector('.quoted-modal-citation').remove();
         let clone = msgCitation.cloneNode(true);
+        if(clone.querySelector('.quoted-btn') != null)
+            clone.querySelector('.quoted-btn').remove();
         let div = document.createElement('div');
         div.classList.add('quoted-modal-citation');
         const closeBtn = createElementFromString(`<div class="close"><button>X</button></div>`);
