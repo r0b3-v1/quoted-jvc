@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.2.6
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -83,14 +83,17 @@
 
     //affiche le modal contenant la citation lorqu'on clique sur le bouton de prévisualiation
     function previsualize(mO, msgCitation){
+        if (mO.querySelector('.quoted-modal-citation') != null)
+            mO.querySelector('.quoted-modal-citation').remove();
         let clone = msgCitation.cloneNode(true);
         let div = document.createElement('div');
         div.classList.add('quoted-modal-citation');
         const closeBtn = createElementFromString(`<div class="close"><button>X</button></div>`);
-        closeBtn.addEventListener('click', ()=>{
+        div.addEventListener('click', ()=>{
             div.remove();
         });
-        div.append(closeBtn);
+        div.style.cursor = 'pointer';
+        //div.append(closeBtn);
         div.append(clone);
         let header = mO.querySelector('.bloc-header')
         header.append(div);
@@ -182,11 +185,11 @@
     //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre
     function appendCitation(original, msgsC) {
         original.querySelector('.bloc-header').style.height = '5.75rem';
-        let header = original.querySelector('.bloc-header .bloc-date-msg');
+        let header = original.querySelector('.bloc-header');
         const blocC = document.createElement('div');
-        blocC.classList.add('msg-citations', 'quoted-color');
+        blocC.classList.add('quoted-msg-citations', 'quoted-color');
         blocC.innerHTML = '<span>Cité ' + msgsC.length + ' fois : </span>';
-        header.insertBefore(blocC, header.firstChild);
+        header.insertBefore(blocC, header.querySelector('.bloc-date-msg'));
         let count = 1;
         let links = msgsC.map(msg => { return { link: generateLink(extractId(msg.msg), msg.page), author: extractAuthor(msg.msg), page: ((msg.page != 0) ? ' (page ' + msg.page + ')' : '') } });
         createSelect(links).forEach(ele => {
@@ -198,7 +201,13 @@
             let id = linkS[linkS.length-1];
             previsualize(original, msgsC.filter(msg=>extractId(msg.msg)===id)[0].msg);
         });
-        blocC.append(previewBtn);
+        if(window.screen.width < 500){
+            blocC.append(document.createElement('br'),previewBtn);
+            original.querySelector('.bloc-header').style.height = '7rem';
+            previewBtn.style.marginLeft = '0';
+        }
+        else
+            blocC.append(previewBtn);
     }
 
     //crée le select ou le lien pour choisir quelle citation charger
