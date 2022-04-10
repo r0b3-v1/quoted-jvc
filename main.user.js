@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      1.2.6
+// @version      1.3
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -15,22 +15,20 @@
 
 (async function () {
     /*
-    notes: ce script fonctionne mais a quelques défauts :
-    - parfois lent à charger
-    - il se base sur la date des messages contenue (ou pas) dans les citations, si celle-ci est modifiée ça marche pas.
-    - si votre message est cité mais que pour X raisons la citation n'a pas la date de votre message au bon format, alors le script ne le prendra pas en compte (problématique pour la compatibilité avec certains autres scripts)
-    - probablement des bugs pas encore explorés
-    - si le message est cité trop de fois alors ça risque de déborder, pas encore fait l'adaptation de la taille du header en fonction du nombre de citations
+    notes: ce script fonctionne mais a un défaut :
+    - il se base sur la date des messages contenue (ou pas) dans les citations, si celle-ci est modifiée ça marche pas. Donc si votre message est cité mais que pour X raisons la citation n'a pas la date de votre message au bon format,
+      alors le script ne le prendra pas en compte (problématique pour la compatibilité avec certains autres scripts)
+      Possible fix en modifiant la regex de test dans la fonction getQuotedMsgDate
 
     Remarque : sont prises en compte les premières citations seulement, si le message est imbriqué dans des couches de citations, il ne sera pas retenu
     */
 
     'use strict';
     const currentPageMessages = getMessages();
-    if (currentPageMessages.length == 0 || window.location.pathname.includes('/message')) return;
+    if (currentPageMessages.length <= 1 || window.location.pathname.includes('/message')) return;
     //le max de pages que le script peut aller chercher
     const maxPages = 100;
-    //le nombre de pages que le script va charger pour voir si les messages de la page courante sont cités. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
+    //le nombre de pages que le script va charger par défaut. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
     let nbPageATest = 10;
     if (localStorage.getItem('quoted-pages') != null && parseInt(localStorage.getItem('quoted-pages')) == localStorage.getItem('quoted-pages'))
         nbPageATest = Math.max(1, Math.min(Math.abs(localStorage.getItem('quoted-pages')), maxPages));
@@ -38,7 +36,7 @@
     let nbPageExploreesTotal = 0;
 
     //liste des messages de la page courante
-    const messagesIndex = buildMessages();
+    const messagesIndex = buildPageIndex();
 
     //les pemts qui ont eu lieu sur la page
     const pemts = initPEMT();
@@ -49,16 +47,13 @@
     (async function init() {
         const my_css = GM_getResourceText("CSS");
         GM_addStyle(my_css);
-        messagesIndex.forEach((date,msg) => {
-            msg.querySelector('.bloc-date-msg').append(createElementFromString(`<span style="display:none">Quoted</span>`));
-        });
 
         displayLoading();
 
         //on récupère les relations dans la page courante et on initialise le tableau avec
         let pages = [{ page: 0, matches: processMessages(document) }];
 
-        //pour chaque page on va récupérer son contenu puis faire les relations également, et mettre le résultat dans le tableau
+        //pour chaque page on va récupérer son contenu puis faire les relations, et mettre le résultat dans le tableau
         for (let np of nextPages()) {
             await fetchPage(np.url).then((res) => { pages.push({ page: np.page, matches: processMessages(res) }) });
         };
@@ -72,11 +67,13 @@
 
     modal(toggleModal);
     optionButton(toggleModal);
+    //crée le bouton pour afficher le modal des options
     function optionButton(toggleFunction) {
         const bloc = document.querySelector('#forum-main-col');
         let btnString = `<button class="btn quoted-btn">QUOTED</button>`
         let button = createElementFromString(btnString);
-        button.addEventListener("click", () => {
+        button.addEventListener("click", (e) => {
+            e.stopPropagation();
             const modal = document.querySelector('#quoted-options');
             toggleFunction(modal);
 
@@ -85,22 +82,22 @@
     }
 
     //affiche le modal contenant la citation lorqu'on clique sur le bouton de prévisualiation
-    function previsualize(mO, msgCitation){
-        if (mO.querySelector('.quoted-modal-citation') != null)
-            mO.querySelector('.quoted-modal-citation').remove();
+    function previsualize(msgOriginal, msgCitation) {
+        if (msgOriginal.querySelector('.quoted-modal-citation') != null)
+            msgOriginal.querySelector('.quoted-modal-citation').remove();
         let clone = msgCitation.cloneNode(true);
-        if(clone.querySelector('.quoted-btn') != null)
+        if (clone.querySelector('.quoted-btn') != null)
             clone.querySelector('.quoted-btn').remove();
         let div = document.createElement('div');
         div.classList.add('quoted-modal-citation');
         const closeBtn = createElementFromString(`<div class="close"><button>X</button></div>`);
-        div.addEventListener('click', ()=>{
+        div.addEventListener('click', () => {
             div.remove();
         });
         div.style.cursor = 'pointer';
         //div.append(closeBtn);
         div.append(clone);
-        let header = mO.querySelector('.bloc-header')
+        let header = msgOriginal.querySelector('.bloc-header')
         header.append(div);
     }
 
@@ -122,16 +119,33 @@
         mainCol.style.position = 'relative';
 
         mainCol.insertBefore(modal, document.querySelector('#forum-main-col>div:nth-last-child(1)'));
+        let input = document.querySelector('#quoted-page-input');
+        input.addEventListener('change', () => {
+            changeNbPagesATest();
+        });
         let confirmBtn = document.querySelector('#quoted-confirm');
+
+        document.addEventListener('click', (e) => {
+            let pos = modal.getBoundingClientRect()
+            if (modal.style.display == "flex" && !((e.clientX >= pos.x && e.clientX <= (pos.x + pos.width)) && (e.clientY >= pos.y && e.clientY <= (pos.y + pos.height))))
+                toggleFunction(modal);
+        });
+
         confirmBtn.addEventListener('click', () => {
-            let numberToStore = document.querySelector('#quoted-page-input').value;
-            if ((numberToStore == null) || (parseInt(numberToStore) != numberToStore) || parseInt(numberToStore) > maxPages)
-                localStorage.setItem('quoted-pages', 10);
-            else
-                localStorage.setItem('quoted-pages', numberToStore);
+            changeNbPagesATest();
             toggleFunction(modal);
         });
 
+
+
+    }
+
+    function changeNbPagesATest() {
+        let numberToStore = document.querySelector('#quoted-page-input').value;
+        if ((numberToStore == null || numberToStore == '') || (parseInt(numberToStore) != numberToStore) || parseInt(numberToStore) > maxPages)
+            localStorage.setItem('quoted-pages', 10);
+        else
+            localStorage.setItem('quoted-pages', numberToStore);
     }
 
     function toggleModal(modal) {
@@ -149,7 +163,7 @@
 
     //------------------------------------------------LOGIQUE DU SCRIPT-----------------------------------------------------------------
 
-    //récupère les dates de tous les posts qui ont fait un pemt et les renvoie dans un tableau : array
+    //récupère les dates de tous les posts qui ont fait un pemt et les renvoie dans un tableau en supprimant les doublons @return array
     function initPEMT() {
         let sorted = [...messagesIndex.entries()].sort();
         let entries = [];
@@ -164,7 +178,6 @@
 
     //affiche un message de chargement sur les messages qui sera retiré quand tout aura été chargé
     function displayLoading() {
-
         currentPageMessages.forEach(msg => {
             msg.querySelector('.bloc-header').style.height = '5rem'
             let loading = document.createElement('div');
@@ -173,7 +186,6 @@
 
             let header = msg.querySelector('.bloc-header .bloc-date-msg');
             header.insertBefore(loading, header.firstChild);
-
         });
     }
 
@@ -187,27 +199,28 @@
         console.log('Messages chargés (' + nbPageExploreesTotal + ' page(s) explorée(s))');
     }
 
-    //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre
+    //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre @param msgsC : tableau d'objets de la forme {page:x, msg:x}
     function appendCitation(original, msgsC) {
         original.querySelector('.bloc-header').style.height = '5.75rem';
         let header = original.querySelector('.bloc-header');
+
         const blocC = document.createElement('div');
         blocC.classList.add('quoted-msg-citations', 'quoted-color');
         blocC.innerHTML = '<span>Cité ' + msgsC.length + ' fois : </span>';
         header.insertBefore(blocC, header.querySelector('.bloc-date-msg'));
         let count = 1;
-        let links = msgsC.map(msg => { return { link: generateLink(extractId(msg.msg), msg.page), author: extractAuthor(msg.msg), page: ((msg.page != 0) ? ' (page ' + msg.page + ')' : '') } });
+        let links = msgsC.map(obj => { return { link: generateLink(extractId(obj.msg), obj.page), author: extractAuthor(obj.msg), page: ((obj.page != 0) ? ' (page ' + obj.page + ')' : '') } });
         createSelect(links).forEach(ele => {
             blocC.append(ele);
         });
         const previewBtn = createElementFromString(`<button class="quoted-btn quoted-preview-btn">Prévisualiser</button>`);
-        previewBtn.addEventListener('click', ()=>{
+        previewBtn.addEventListener('click', () => {
             let linkS = original.querySelector('.quoted-goto').getAttribute('href').split('_');
-            let id = linkS[linkS.length-1];
-            previsualize(original, msgsC.filter(msg=>extractId(msg.msg)===id)[0].msg);
+            let id = linkS[linkS.length - 1];
+            previsualize(original, msgsC.filter(obj => extractId(obj.msg) === id)[0].msg);
         });
-        if(window.screen.width < 500){
-            blocC.append(document.createElement('br'),previewBtn);
+        if (window.screen.width < 500) {
+            blocC.append(document.createElement('br'), previewBtn);
             original.querySelector('.bloc-header').style.height = '7rem';
             previewBtn.style.marginLeft = '0';
         }
@@ -237,7 +250,7 @@
         return [select, redir];
     }
 
-    //génère le lien pour le post sur la page en fonction du numéro de la page donnée et de l'id du post
+    //génère le lien pour le post sur la page en fonction du numéro de la page donnée et de l'id du post @Return string
     function generateLink(id, page) {
         let reg = /(.*forums\/\d*-\d*-\d*-)(\d*)(.*)/gm;
         let url = "https://www.jeuxvideo.com" + window.location.pathname;
@@ -246,24 +259,22 @@
         return url.replace(reg, "$1" + page + "$3") + "#post_" + id;
     }
 
-    //fonction qui prend un tableau de maps en argument et les merge toutes ensemble : Map
+    //fonction qui prend un tableau de maps en argument et les merge toutes ensemble @Return Map
     function mergeAll(maps) {
         maps.forEach(obj => {
             obj.matches.forEach((arrayV, k) => {
                 obj.matches.set(k, arrayV.map((msg) => { return { page: obj.page, msg: msg } }));
             });
         });
-        let init = maps[0].matches;
+        let allMapsMerged = maps[0].matches;
         for (let i = 1; i < maps.length; i++) {
-            init = mergeMaps(init, maps[i].matches, maps[i].page);
+            allMapsMerged = mergeMaps(allMapsMerged, maps[i].matches);
         }
-
-        return init;
+        return allMapsMerged;
     }
 
-    //fonction qui fusionne deux map en une seule, en concaténant les tableaux quand les maps ont la même clé : Map
-    function mergeMaps(mapA, mapB, page = 0) {
-
+    //fonction qui fusionne deux map en une seule, en concaténant les tableaux quand les maps ont la même clé @Return Map
+    function mergeMaps(mapA, mapB) {
         let myMap = new Map([...mapA]);
         mapB.forEach((v, k) => {
             if (myMap.has(k)) {
@@ -303,6 +314,7 @@
         return matches;
     }
 
+    //pour debugger
     function debug(separator, ...values) {
         console.log('______________________________________START DEBUG : ' + separator + '_____________________________________________');
         values.forEach(v => {
@@ -329,7 +341,7 @@
         return (originalTxt.includes(msgTxt) || msgTxt.includes(originalTxt));
     }
 
-    //recupère les dates des messages cités dans le message : array
+    //recupère les dates des messages cités dans le message @Return array
     function getQuotedMsgDate(message) {
         let firstQuotes = Array.prototype.slice.call(message.querySelectorAll('.txt-msg > .blockquote-jv'));
         let reg = /\d{2}\s.+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm;
@@ -342,13 +354,13 @@
         return dates;
     }
 
-    //renvoie les messages contenus par l'élément passé en paramètre : array
+    //renvoie les messages contenus par l'élément passé en paramètre @Return array
     function getMessages(element = document) {
         return Array.prototype.slice.call(element.querySelectorAll('.conteneur-messages-pagi .bloc-message-forum:not(.msg-supprime)'));
     }
 
-    //crée un dictionnaire contenant en index les messages de la page courante et en valeur leurs dates : Map
-    function buildMessages() {
+    //crée un dictionnaire contenant en index les messages de la page courante et en valeur leurs dates @Return Map
+    function buildPageIndex() {
         let messages = document.querySelectorAll('.bloc-message-forum:not(.msg-supprime)'); //on ignore les messages de jvarchive pour le moment
         let res = new Map();
         messages.forEach(msg => {
@@ -357,35 +369,31 @@
         return res;
     }
 
-    //récupère la date du message : string
+    //récupère la date du message @Return string
     function extractDate(message) {
         let dateLink = message.querySelector('.bloc-header .bloc-date-msg a');
-        let date = trimEsc(message.querySelector('.bloc-date-msg').textContent);
+        let date = message.querySelector('.bloc-date-msg').textContent.trim();
         return date;
     }
 
-    //récupère l'id du message passé en paramètre : string
+    //récupère l'id du message @Return string
     function extractId(message) {
         return message.getAttribute('data-id');
     }
 
-    //récupère le pseudo de l'auteur du message : string
+    //récupère le pseudo de l'auteur du message @Return string
     function extractAuthor(message) {
-        return trimEsc(message.querySelector('.bloc-pseudo-msg').textContent);
+        return message.querySelector('.bloc-pseudo-msg').textContent.trim();
     }
 
-    function trimEsc(str) {
-        return str.replace(/^(\s*)(.*)(\s*)$/, '$2');
-    }
-
-    //crée un élément en fonction de la chaîne donnée : HTMLElement
+    //crée un élément en fonction de la chaîne donnée @Return HTMLElement
     function createElementFromString(htmlString) {
         var div = document.createElement('div');
         div.innerHTML = htmlString.trim();
         return div.firstChild;
     }
 
-    //va chercher la page donnée en paramètre : string
+    //va chercher la page donnée en paramètre et transforme la réponse en élément html @Return HTMLElement
     async function fetchPage(url) {
         let response = await fetch(url);
         let texte = await response.text();
@@ -393,7 +401,7 @@
         return parser.parseFromString(texte, 'text/html');
     }
 
-    //retourne un tableau contenant les url de toutes les pages suivantes du topic : array
+    //retourne un tableau contenant les url de toutes les pages suivantes du topic @Return array
     function nextPages(max = nbPageATest) {
         let avantDernierSpan = document.querySelector('.bloc-liste-num-page span:nth-last-child(2)');
         let maxPages = parseInt(document.querySelector('.bloc-liste-num-page span:last-child').textContent);
