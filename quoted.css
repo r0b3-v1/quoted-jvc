@@ -2,6 +2,8 @@
     --quoted-main-color : rgb(52, 151, 27);
     --quoted-main-color-hover : rgb(43, 112, 26);
     --quoted-modal-bg : rgb(168, 230, 153);
+    --quoted-highlight-bg : rgba(168, 103, 156, 0.4);
+    --quoted-highlight-border : rgba(140,50,123,0.8);
 }
 
 html {
@@ -13,6 +15,11 @@ html {
   left: 4rem;
   font-size: 0.675rem;
   top: 3.5rem;
+}
+
+div.bloc-message-forum.quoted-highlighted{
+    background: var(--quoted-highlight-bg);
+    border: 1px solid var(--quoted-highlight-border);
 }
 
 .quoted-preview-btn{

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.3.1
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -47,7 +47,9 @@
     (async function init() {
         const my_css = GM_getResourceText("CSS");
         GM_addStyle(my_css);
-
+        createModal();
+        createOptionButton();
+        emphasizePost();
         displayLoading();
 
         //on récupère les relations dans la page courante et on initialise le tableau avec
@@ -65,18 +67,15 @@
 
     //----------------------------------------------POUR L'AFFICHAGE DES OPTIONS--------------------------------------------------------
 
-    modal(toggleModal);
-    optionButton(toggleModal);
     //crée le bouton pour afficher le modal des options
-    function optionButton(toggleFunction) {
+    function createOptionButton() {
         const bloc = document.querySelector('#forum-main-col');
         let btnString = `<button class="btn quoted-btn">QUOTED</button>`
         let button = createElementFromString(btnString);
         button.addEventListener("click", (e) => {
             e.stopPropagation();
             const modal = document.querySelector('#quoted-options');
-            toggleFunction(modal);
-
+            toggleModal(modal);
         });
         bloc.insertBefore(button, bloc.querySelector('.bloc-pre-pagi-forum'));
     }
@@ -95,14 +94,13 @@
             div.remove();
         });
         div.style.cursor = 'pointer';
-        //div.append(closeBtn);
         div.append(clone);
         let header = msgOriginal.querySelector('.bloc-header')
         header.append(div);
     }
 
     //modal des options
-    function modal(toggleFunction) {
+    function createModal() {
         const modalString = `<div id="quoted-options" class="quoted-modal-options">
         <h3> Options </h3>
         <div>
@@ -128,16 +126,13 @@
         document.addEventListener('click', (e) => {
             let pos = modal.getBoundingClientRect()
             if (modal.style.display == "flex" && !((e.clientX >= pos.x && e.clientX <= (pos.x + pos.width)) && (e.clientY >= pos.y && e.clientY <= (pos.y + pos.height))))
-                toggleFunction(modal);
+                toggleModal(modal);
         });
 
         confirmBtn.addEventListener('click', () => {
             changeNbPagesATest();
-            toggleFunction(modal);
+            toggleModal(modal);
         });
-
-
-
     }
 
     function changeNbPagesATest() {
@@ -162,6 +157,22 @@
     }
 
     //------------------------------------------------LOGIQUE DU SCRIPT-----------------------------------------------------------------
+
+
+    //rend le post sur lequel on est redirigé plus visible
+    function emphasizePost(url = window.location.hash){
+        const prev = document.querySelector('.quoted-highlighted');
+        if (prev)
+            prev.classList.remove('quoted-highlighted');
+
+        let id = (url.match(/post_(\d+)$/))? url.match(/post_(\d+)$/)[1] : false;
+        if(!id) return;
+
+        let message = [...messagesIndex.keys()].filter(msg => extractId(msg)==id)[0] ?? null;
+        message.classList.add('quoted-highlighted');
+    }
+
+
 
     //récupère les dates de tous les posts qui ont fait un pemt et les renvoie dans un tableau en supprimant les doublons @return array
     function initPEMT() {
@@ -232,7 +243,11 @@
     function createSelect(links) {
         if (links.length == 1) {
             let link = links[0];
-            return [createElementFromString(`<a class="quoted-goto" href="${link.link}">${link.author}${link.page}</a>`)];
+            let aref = createElementFromString(`<a class="quoted-goto" href="${link.link}">${link.author}${link.page}</a>`);
+            aref.addEventListener('click', () => {
+                emphasizePost(aref.getAttribute('href'));
+            });
+            return [aref];
         }
         let select = document.createElement('select');
         select.classList.add('quoted-select');
@@ -240,6 +255,9 @@
         redir.classList.add('quoted-goto');
         redir.innerText = 'Aller';
         redir.setAttribute('href', links[0].link);
+        redir.addEventListener('click', ()=>{
+            emphasizePost(redir.getAttribute('href'));
+        });
         select.addEventListener('change', () => {
             redir.setAttribute('href', select.options[select.selectedIndex].value);
         });
