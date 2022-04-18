@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      1.3.1
+// @version      1.3.2
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -12,8 +12,9 @@
 // @grant        GM_addStyle
 // ==/UserScript==
 
+quoted();
 
-(async function () {
+async function quoted() {
     /*
     notes: ce script fonctionne mais a un défaut :
     - il se base sur la date des messages contenue (ou pas) dans les citations, si celle-ci est modifiée ça marche pas. Donc si votre message est cité mais que pour X raisons la citation n'a pas la date de votre message au bon format,
@@ -26,6 +27,8 @@
     'use strict';
     const currentPageMessages = getMessages();
     if (currentPageMessages.length <= 1 || window.location.pathname.includes('/message')) return;
+    const startDate = Date.now();
+
     //le max de pages que le script peut aller chercher
     const maxPages = 100;
     //le nombre de pages que le script va charger par défaut. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
@@ -170,6 +173,7 @@
 
         let message = [...messagesIndex.keys()].filter(msg => extractId(msg)==id)[0] ?? null;
         message.classList.add('quoted-highlighted');
+        setTimeout( () => {message.classList.remove('quoted-highlighted')},2000);
     }
 
 
@@ -315,7 +319,7 @@
             if (msg.querySelector('blockquote') != null) {
                 let dates = getQuotedMsgDate(msg);
                 messagesIndex.forEach((msgIValue, msgIKey) => {
-                    if (dates.includes(msgIValue)) {
+                    if (dates.includes(msgIValue) || (dates.filter((date)=>msgIValue.includes(date)).length>0)) {
                         const quoteFromPEMT = (dates.filter(value => pemts.includes(value)).length > 0);//on teste si les dates du message viennent de pemt, si c'est le cas on applique l'algo de filtrage
                         if (!quoteFromPEMT || (quoteFromPEMT && antiPEMT(msgIKey, msg))) {
                             if (!matches.has(msgIKey)) matches.set(msgIKey, [msg]);
@@ -341,6 +345,10 @@
         console.log('**************************************END DEBUG : ' + separator + '**************************************');
     }
 
+    function getTime(str = ''){
+        console.log(str + ' : ' +(Date.now() - startDate)/1000 + ' sec');
+    }
+
     //compare le contenu de la citation avec celui du message original. Si le texte de la citation est contenu dans le message original ou inversement, le test est validé, sinon non
     function antiPEMT(originalMsg, msg) {
         let msgTxt = Array.prototype.slice.call(msg.querySelectorAll('.txt-msg>blockquote>p')).map((ele) => ele.textContent).reduce((next, current) => current + " " + next, '');
@@ -362,12 +370,21 @@
     //recupère les dates des messages cités dans le message @Return array
     function getQuotedMsgDate(message) {
         let firstQuotes = Array.prototype.slice.call(message.querySelectorAll('.txt-msg > .blockquote-jv'));
+        let secMatches = /\[\d{2}:\d{2}:\d{2}\]\s<.*>/gm;
         let reg = /\d{2}\s.+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm;
         let dates = firstQuotes.map((quote) => {
             if (quote.querySelector('p') == null) return '';
             let test = quote.querySelector('p').textContent.match(reg);
             if (test != null) return test[0];
         });
+        let datesSec = firstQuotes.map((quote) => {
+            if (quote.querySelector('p') == null) return '';
+            let test = quote.querySelector('p').textContent.match(secMatches);
+            if (test != null) return test[0];
+        });
+
+        if(datesSec[0] != null)
+            return [datesSec[0].replace(/(.*)(\d{2}:\d{2}:\d{2})(.*)/,'$2')];
 
         return dates;
     }
@@ -439,4 +456,4 @@
         return pagesIndexed;
     }
 
-})();
+};
