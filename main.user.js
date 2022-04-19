@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      1.3.2
+// @version      1.3.3
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -319,7 +319,7 @@ async function quoted() {
             if (msg.querySelector('blockquote') != null) {
                 let dates = getQuotedMsgDate(msg);
                 messagesIndex.forEach((msgIValue, msgIKey) => {
-                    if (dates.includes(msgIValue) || (dates.filter((date)=>msgIValue.includes(date)).length>0)) {
+                    if (dates.includes(msgIValue) || (dates.filter((date)=>msgIValue.includes(date) && date!='').length>0)) {
                         const quoteFromPEMT = (dates.filter(value => pemts.includes(value)).length > 0);//on teste si les dates du message viennent de pemt, si c'est le cas on applique l'algo de filtrage
                         if (!quoteFromPEMT || (quoteFromPEMT && antiPEMT(msgIKey, msg))) {
                             if (!matches.has(msgIKey)) matches.set(msgIKey, [msg]);
