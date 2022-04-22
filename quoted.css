@@ -10,6 +10,10 @@ html {
   scroll-behavior: smooth;
 }
 
+#quoted-options label{
+    color:#000;
+}
+
 .quoted-msg-citations.quoted-color {
   position: absolute;
   left: 4rem;
@@ -18,8 +22,8 @@ html {
 }
 
 div.bloc-message-forum.quoted-highlighted{
-    background: var(--quoted-highlight-bg);
-    border: 1px solid var(--quoted-highlight-border);
+    background: var(--quoted-highlight-bg)!important;
+    border: 1px solid var(--quoted-highlight-border)!important;
 }
 
 .quoted-preview-btn{

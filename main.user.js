@@ -10,6 +10,9 @@
 // @resource     CSS https://pastebin.com/raw/fMWAQHTw
 // @grant        GM_getResourceText
 // @grant        GM_addStyle
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_deleteValue
 // ==/UserScript==
 
 quoted();
@@ -37,6 +40,7 @@ async function quoted() {
         nbPageATest = Math.max(1, Math.min(Math.abs(localStorage.getItem('quoted-pages')), maxPages));
 
     let nbPageExploreesTotal = 0;
+    let nbPagesEnCache = 0;
 
     //liste des messages de la page courante
     const messagesIndex = buildPageIndex();
@@ -55,17 +59,62 @@ async function quoted() {
         emphasizePost();
         displayLoading();
 
+        //si le topic est différent du précédent, on reset le cache
+        if(!sameTopic())
+            GM_deleteValue('pages');
         //on récupère les relations dans la page courante et on initialise le tableau avec
+        //puis pour chaque page on va récupérer son contenu puis faire les relations, et mettre le résultat dans le tableau
         let pages = [{ page: 0, matches: processMessages(document) }];
 
-        //pour chaque page on va récupérer son contenu puis faire les relations, et mettre le résultat dans le tableau
-        for (let np of nextPages()) {
-            await fetchPage(np.url).then((res) => { pages.push({ page: np.page, matches: processMessages(res) }) });
+        //on récupère le cache
+        let cachedPages = GM_getValue('pages');
+        let skip = false;
+        const pagesATest= nextPages();
+        let count = 0;
+        for (let np of pagesATest) {
+            skip=false;
+            //on regarde dans le cache si on déjà stocké les pages suivantes, si c'est le cas, on ne fera pas le fetch mais on chargera ce qu'on a déjà stocké
+            if(cachedPages!=null){
+                for(let cachedPage of cachedPages){
+                    if(cachedPage.url==np.url){
+                        let parser = new DOMParser();
+                        let content = parser.parseFromString(cachedPage.content, 'text/html');
+                        pages.push({ page: np.page, matches: processMessages(content) });
+                        skip=true;
+                        nbPagesEnCache++;
+                    }
+                };
+            }
+            if(!skip){
+                nbPageExploreesTotal++;
+                //on ne met pas en cache la dernière page parce que c'est là que les nouveaux messages arrivent, elle sera donc toujours rechargée
+                let save = (count++ != (pagesATest.length-1));
+                await fetchPage(np.url,save).then((res) => {pages.push({ page: np.page, matches: processMessages(res) }) });
+            }
         };
-
         //on termine en affichant les liens dans la page courante
         createLinks(mergeAll(pages));
     })();
+
+    //----------------------------------------------SYSTEME DE CACHE--------------------------------------------------------
+
+    //renvoie true si l'utilisateur est toujours sur le même topic quand il change de page
+    function sameTopic(url=GM_getValue('topic')){
+        GM_setValue('topic',window.location.href);
+        if (url==null) return false;
+        let testUrl = window.location.href.replace(/(.*)(\/\d*-\d*-\d*-)(\d*)(.*)/,"$1$2$4");
+        return (testUrl == url.replace(/(.*)(\/\d*-\d*-\d*-)(\d*)(.*)/,"$1$2$4"));
+    };
+
+    function saveToCache(url,texte){
+        if(GM_getValue('pages')==null)
+            GM_setValue('pages', [{url:url, content : texte}]);
+        else{
+            let alreadyCached = GM_getValue('pages').filter(page=>page.url==url).length>0;
+            if(!alreadyCached)
+                GM_setValue('pages', GM_getValue('pages').concat({url:url, content : texte}));
+        }
+    }
 
 
     //----------------------------------------------POUR L'AFFICHAGE DES OPTIONS--------------------------------------------------------
@@ -110,7 +159,10 @@ async function quoted() {
         <label for="quoted-page-input">Nombre de pages à sonder</label>
         <input type="number" id="quoted-page-input" value="${nbPageATest}" min="1" max="${maxPages}"></input>
         </div>
+        <div>
         <button id="quoted-confirm" class="btn quoted-btn">Valider</button>
+        <button id="quoted-empty-cache" class="btn quoted-btn">Vider le cache</button>
+        </div>
         </div>
         `;
         const modal = createElementFromString(modalString);
@@ -125,6 +177,12 @@ async function quoted() {
             changeNbPagesATest();
         });
         let confirmBtn = document.querySelector('#quoted-confirm');
+        let emptyCacheBtn = document.querySelector('#quoted-empty-cache');
+
+        emptyCacheBtn.addEventListener('click', ()=>{
+            GM_deleteValue('pages');
+            alert('cache vidé');
+        });
 
         document.addEventListener('click', (e) => {
             let pos = modal.getBoundingClientRect()
@@ -211,7 +269,7 @@ async function quoted() {
         });
         let loadings = document.querySelectorAll('.loading-citations');
         for (let ele of loadings) { ele.remove() }
-        console.log('Messages chargés (' + nbPageExploreesTotal + ' page(s) explorée(s))');
+        console.log('Messages chargés (' + nbPageExploreesTotal + ' page(s) explorée(s) et '+nbPagesEnCache+' pages en cache chargées)');
     }
 
     //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre @param msgsC : tableau d'objets de la forme {page:x, msg:x}
@@ -429,9 +487,11 @@ async function quoted() {
     }
 
     //va chercher la page donnée en paramètre et transforme la réponse en élément html @Return HTMLElement
-    async function fetchPage(url) {
+    async function fetchPage(url, save=true) {
         let response = await fetch(url);
         let texte = await response.text();
+        if(save)
+            saveToCache(url,texte);
         let parser = new DOMParser();
         return parser.parseFromString(texte, 'text/html');
     }
@@ -452,7 +512,7 @@ async function quoted() {
             splited[3] = ++currentId;
             pagesIndexed.push({ page: currentId, url: splited.join('-') });
         }
-        nbPageExploreesTotal = pagesIndexed.length + 1;
+        //nbPageExploreesTotal = pagesIndexed.length + 1;
         return pagesIndexed;
     }
 
