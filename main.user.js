@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -39,7 +39,7 @@ async function quoted() {
     if (localStorage.getItem('quoted-pages') != null && parseInt(localStorage.getItem('quoted-pages')) == localStorage.getItem('quoted-pages'))
         nbPageATest = Math.max(1, Math.min(Math.abs(localStorage.getItem('quoted-pages')), maxPages));
 
-    let nbPageExploreesTotal = 0;
+    let nbPagesExploreesTotal = 0;
     let nbPagesEnCache = 0;
 
     //liste des messages de la page courante
@@ -59,12 +59,17 @@ async function quoted() {
         emphasizePost();
         displayLoading();
 
-        //si le topic est différent du précédent, on reset le cache
-        if(!sameTopic())
+        //si le topic est différent du précédent, on reset le cache et on stocke la page courante dedans
+        if(!sameTopic()){
             GM_deleteValue('pages');
+            let content = document.getElementsByTagName('html')[0].innerHTML;
+            saveToCache(window.location.href, content);
+        }
+
+        citationAuthors();
         //on récupère les relations dans la page courante et on initialise le tableau avec
         //puis pour chaque page on va récupérer son contenu puis faire les relations, et mettre le résultat dans le tableau
-        let pages = [{ page: 0, matches: processMessages(document) }];
+        let pages = [{ page: 0, matches: processMessages(document,messagesIndex) }];
 
         //on récupère le cache
         let cachedPages = GM_getValue('pages');
@@ -79,33 +84,66 @@ async function quoted() {
                     if(cachedPage.url==np.url){
                         let parser = new DOMParser();
                         let content = parser.parseFromString(cachedPage.content, 'text/html');
-                        pages.push({ page: np.page, matches: processMessages(content) });
+                        pages.push({ page: np.page, matches: processMessages(content,messagesIndex) });
                         skip=true;
                         nbPagesEnCache++;
                     }
                 };
             }
             if(!skip){
-                nbPageExploreesTotal++;
+                nbPagesExploreesTotal++;
                 //on ne met pas en cache la dernière page parce que c'est là que les nouveaux messages arrivent, elle sera donc toujours rechargée
                 let save = (count++ != (pagesATest.length-1));
-                await fetchPage(np.url,save).then((res) => {pages.push({ page: np.page, matches: processMessages(res) }) });
+                await fetchPage(np.url,save).then((res) => {pages.push({ page: np.page, matches: processMessages(res,messagesIndex) }) });
             }
         };
         //on termine en affichant les liens dans la page courante
         createLinks(mergeAll(pages));
     })();
 
-    //----------------------------------------------SYSTEME DE CACHE--------------------------------------------------------
+    //----------------------------------------------SYSTEME DE CACHE + NOM DES AUTEURS DES CITATIONS--------------------------------------------------------
+
+    //parcourt les pages en cache et fait les relations avec la page courante quand celles-ci la précèdent. Puis appelle la fonction qui append les auteurs
+    function citationAuthors(){
+        let cache = GM_getValue("pages");
+        if(cache == null) return;
+
+        let currentPageId = parseInt(window.location.pathname.split('-')[3]);
+        let pageId = 0;
+        cache.forEach(page => {
+            pageId = parseInt(page.url.split('-')[3]);
+            if(pageId<=currentPageId)
+            {
+                let parser = new DOMParser();
+                let pageElement = parser.parseFromString(page.content, 'text/html');
+                let citationRelations = processMessages(document, buildPageIndex(pageElement));
+                citationRelations.forEach((messages,messageCite)=>{
+                    appendAuthorName(messages,extractAuthor(messageCite));
+                });
+            }
+
+        });
+    }
+
+    //donnée une liste de messages et un nom d'auteur, ajoute ce nom dans l'entête des messages s'il n'est pas déjà présent
+    function appendAuthorName(messages, name){
+        messages.forEach(message => {
+            let quoteFirstLine = message.querySelector('.txt-msg>blockquote p');
+            let hasAuthor = quoteFirstLine.textContent.includes(name);
+            if (hasAuthor) return;
+            quoteFirstLine.insertAdjacentHTML('beforebegin', name + ' a écrit');
+        });
+    }
 
     //renvoie true si l'utilisateur est toujours sur le même topic quand il change de page
     function sameTopic(url=GM_getValue('topic')){
         GM_setValue('topic',window.location.href);
         if (url==null) return false;
-        let testUrl = window.location.href.replace(/(.*)(\/\d*-\d*-\d*-)(\d*)(.*)/,"$1$2$4");
-        return (testUrl == url.replace(/(.*)(\/\d*-\d*-\d*-)(\d*)(.*)/,"$1$2$4"));
+        let testUrl = window.location.href.replace(/(.*)(\/\d*-\d*-\d*-)(\d*)(.*)/,"$1$2$4").replace(/#post_.*/,'');
+        return (testUrl == url.replace(/(.*)(\/\d*-\d*-\d*-)(\d*)(.*)/,"$1$2$4").replace(/#post_.*/,''));
     };
 
+    //ajoute à l'entrée 'pages' dans le cache un objet avec l'url et le contenu spécifié
     function saveToCache(url,texte){
         if(GM_getValue('pages')==null)
             GM_setValue('pages', [{url:url, content : texte}]);
@@ -269,7 +307,7 @@ async function quoted() {
         });
         let loadings = document.querySelectorAll('.loading-citations');
         for (let ele of loadings) { ele.remove() }
-        console.log('Messages chargés (' + nbPageExploreesTotal + ' page(s) explorée(s) et '+nbPagesEnCache+' pages en cache chargées)');
+        console.log('Messages chargés (' + nbPagesExploreesTotal + ' page(s) explorée(s) et '+nbPagesEnCache+' page(s) en cache chargée(s))');
     }
 
     //pour le message passé en paramètre, append un lien vers le(s) message(s) du tableau en paramètre @param msgsC : tableau d'objets de la forme {page:x, msg:x}
@@ -370,13 +408,13 @@ async function quoted() {
     }
 
     //parcourt les messages de la page donnée, s'ils contiennent une citation alors on récupère sa date puis on vérifie dans le Map si elle correspond à un message. Si c'est le cas, on ajoute le message
-    function processMessages(page = document) {
+    function processMessages(page = document, refIndex) {
         let messages = getMessages(page);
         let matches = new Map();
         messages.forEach(msg => {
             if (msg.querySelector('blockquote') != null) {
                 let dates = getQuotedMsgDate(msg);
-                messagesIndex.forEach((msgIValue, msgIKey) => {
+                refIndex.forEach((msgIValue, msgIKey) => {
                     if (dates.includes(msgIValue) || (dates.filter((date)=>msgIValue.includes(date) && date!='').length>0)) {
                         const quoteFromPEMT = (dates.filter(value => pemts.includes(value)).length > 0);//on teste si les dates du message viennent de pemt, si c'est le cas on applique l'algo de filtrage
                         if (!quoteFromPEMT || (quoteFromPEMT && antiPEMT(msgIKey, msg))) {
@@ -453,8 +491,8 @@ async function quoted() {
     }
 
     //crée un dictionnaire contenant en index les messages de la page courante et en valeur leurs dates @Return Map
-    function buildPageIndex() {
-        let messages = document.querySelectorAll('.bloc-message-forum:not(.msg-supprime)'); //on ignore les messages de jvarchive pour le moment
+    function buildPageIndex(page=document) {
+        let messages = page.querySelectorAll('.bloc-message-forum:not(.msg-supprime)'); //on ignore les messages de jvarchive pour le moment
         let res = new Map();
         messages.forEach(msg => {
             res.set(msg, extractDate(msg));
@@ -512,7 +550,7 @@ async function quoted() {
             splited[3] = ++currentId;
             pagesIndexed.push({ page: currentId, url: splited.join('-') });
         }
-        //nbPageExploreesTotal = pagesIndexed.length + 1;
+        //nbPagesExploreesTotal = pagesIndexed.length + 1;
         return pagesIndexed;
     }
 
