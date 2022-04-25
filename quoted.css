@@ -10,8 +10,69 @@ html {
   scroll-behavior: smooth;
 }
 
+.quoted-already-read{
+	filter : blur(0.15em) saturate(0);
+}
+
+.quoted-already-read:hover{
+	filter : blur(0) saturate(1);
+}
+
+.quoted-tree-wrapper{
+	overflow : scroll;
+    overflow-x: hidden;
+    max-height : 500px;
+}
+
+.quoted-tree-button{
+    width: 100%;
+    background: rgba(0,0,0,0.3);
+    border: none;
+    color: var(--jv-text-color);
+}
+
+.quoted-tree-modal{
+    position : absolute;
+    transform : translate(-50%,-50%);
+    left : 50%;
+    top : 50%;
+    width : 100%;
+    min-height : 100px;
+    max-height : 500px;
+    z-index : 99;
+    background : var(--jv-body-bg);
+    border: 2px solid var(--jv-text-color);
+	box-sizing: content-box;
+}
+
+.quoted-tree-close{
+	border : 1px solid var(--jv-text-color);
+    position : absolute;
+    top : -45px;
+    right :0;
+    padding : 0.3em;
+    font-size : 2em;
+    background : var(--jv-body-bg);
+    cursor: pointer;
+}
+
+.quoted-tree-close:hover{
+	opacity:0.5;
+}
+
+.quoted-tree-modal .bloc-message-forum{
+    margin-bottom : 20px;
+    background: var(--jv-block-bg-color);
+    border: 0.0625rem solid var(--jv-border-color);
+}
+
+.quoted-tree-modal .bloc-message-forum:nth-of-type(2n+1){
+    border: 0.0625rem solid var(--jv-border-even-color);
+	background: var(--jv-block-even-bg-color);
+}
+
 #quoted-options label{
-    color:#000;
+	color:#000;
 }
 
 .quoted-msg-citations.quoted-color {

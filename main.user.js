@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.7
 // @description  affiche qui vous cite dans le topic et vous permet d'accéder au message directement en cliquant sur le lien, même s'il est sur un page différente!
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -12,6 +12,7 @@
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        GM_listValues
 // @grant        GM_deleteValue
 // ==/UserScript==
 
@@ -31,11 +32,16 @@ async function quoted() {
     const currentPageMessages = getMessages();
     if (currentPageMessages.length <= 1 || window.location.pathname.includes('/message')) return;
     const startDate = Date.now();
+    const topicId = window.location.href.split('-')[2];
 
     //le max de pages que le script peut aller chercher
     const maxPages = 100;
     //le nombre de pages que le script va charger par défaut. /!\ ne pas mettre un nombre trop important sinon ça va prendre énormément de temps à tout charger
     let nbPageATest = 10;
+
+    //le nombre de secondes que le topic va rester en cache s'il n'est pas actualisé
+    const cacheDelay = 300;
+
     if (localStorage.getItem('quoted-pages') != null && parseInt(localStorage.getItem('quoted-pages')) == localStorage.getItem('quoted-pages'))
         nbPageATest = Math.max(1, Math.min(Math.abs(localStorage.getItem('quoted-pages')), maxPages));
 
@@ -48,6 +54,8 @@ async function quoted() {
     //les pemts qui ont eu lieu sur la page
     const pemts = initPEMT();
 
+    //pour les dépendances d'un message
+    let treeMap = new Map();
 
 
     //fonction qui lance le script
@@ -60,11 +68,9 @@ async function quoted() {
         displayLoading();
 
         //si le topic est différent du précédent, on reset le cache et on stocke la page courante dedans
-        if(!sameTopic()){
-            GM_deleteValue('pages');
-            let content = document.getElementsByTagName('html')[0].innerHTML;
-            saveToCache(window.location.href, content);
-        }
+        let content = document.getElementsByTagName('html')[0].innerHTML;
+        saveToCache(window.location.href, content);
+        manageCache();
 
         citationAuthors();
         //on récupère les relations dans la page courante et on initialise le tableau avec
@@ -72,7 +78,7 @@ async function quoted() {
         let pages = [{ page: 0, matches: processMessages(document,messagesIndex) }];
 
         //on récupère le cache
-        let cachedPages = GM_getValue('pages');
+        let cachedPages = GM_getValue(topicId).pages;
         let skip = false;
         const pagesATest= nextPages();
         let count = 0;
@@ -81,7 +87,8 @@ async function quoted() {
             //on regarde dans le cache si on déjà stocké les pages suivantes, si c'est le cas, on ne fera pas le fetch mais on chargera ce qu'on a déjà stocké
             if(cachedPages!=null){
                 for(let cachedPage of cachedPages){
-                    if(cachedPage.url==np.url){
+                    //on recharge toujours la dernière page, même si elle est dans le cache
+                    if(cachedPage.url==np.url && (count++ != (pagesATest.length-1))){
                         let parser = new DOMParser();
                         let content = parser.parseFromString(cachedPage.content, 'text/html');
                         pages.push({ page: np.page, matches: processMessages(content,messagesIndex) });
@@ -92,9 +99,7 @@ async function quoted() {
             }
             if(!skip){
                 nbPagesExploreesTotal++;
-                //on ne met pas en cache la dernière page parce que c'est là que les nouveaux messages arrivent, elle sera donc toujours rechargée
-                let save = (count++ != (pagesATest.length-1));
-                await fetchPage(np.url,save).then((res) => {pages.push({ page: np.page, matches: processMessages(res,messagesIndex) }) });
+                await fetchPage(np.url).then((res) => {pages.push({ page: np.page, matches: processMessages(res,messagesIndex) }) });
             }
         };
         //on termine en affichant les liens dans la page courante
@@ -103,14 +108,120 @@ async function quoted() {
 
     //----------------------------------------------SYSTEME DE CACHE + NOM DES AUTEURS DES CITATIONS--------------------------------------------------------
 
+    function manageCache(){
+
+        document.addEventListener('keydown', (e)=>{
+            if(e.key=='F2'){
+                GM_listValues().forEach(ele => {
+                    debug('topic ' + ele, GM_getValue(ele),'temps écoulé depuis actualisation : '+(Date.now() - GM_getValue(ele).date)/1000+ 's');
+                });;
+            }
+            if(e.key=='F4'){
+                GM_listValues().forEach(ele => {
+                    GM_deleteValue(ele);
+                });;
+                console.log("cache cleared");
+            }
+        });
+
+
+        GM_listValues().forEach(ele => {
+            if((Date.now() - GM_getValue(ele).date)/1000>cacheDelay){
+                console.log('topic ' + ele + ' a expiré');
+                GM_deleteValue(ele);
+            }
+        });
+
+    };
+
+    function mapMessages(msg){
+        let content = document.getElementsByTagName('html')[0].innerHTML;
+        saveToCache(window.location.href, content);
+
+            let btn = createElementFromString(`<button class="quoted-tree-button">Dérouler citations</button>`);
+            btn.addEventListener('click', ()=>{
+                treeMap = new Map();
+                citationTree(msg);
+                treeMap = new Map(Array.from(treeMap).reverse());
+                treeModal(msg);
+            });
+
+            msg.append(btn);
+
+    }
+
+    function treeModal(message){
+        message.querySelector('.quoted-tree-modal')?.remove();
+        let modal = document.createElement('div');
+        modal.classList.add('quoted-tree-modal');
+        let close = document.createElement('div');
+        close.classList.add('quoted-tree-close');
+
+        close.innerHTML='X';
+
+        close.addEventListener('click', ()=>{
+            modal.remove();
+        });
+        modal.append(close);
+        let modalContent = document.createElement('div');
+        modalContent.classList.add('quoted-tree-wrapper');
+
+
+        treeMap.forEach((relations,msg)=>{
+            relations.forEach(rel => {
+                console.log(rel);
+                rel.classList.add('quoted-already-read');
+                let msgClone = rel.cloneNode(true);
+                modalContent.append(msgClone);
+            });
+            //modalContent.append(msg.cloneNode(true));
+        });
+        modal.append(modalContent);
+
+        message.append(modal);
+        for(let cit of modal.querySelectorAll('.quoted-msg-citations')){cit.remove()}
+        for(let cit of modal.querySelectorAll('.loading-citations')){cit.remove()}
+        for(let btn of modal.querySelectorAll('.quoted-tree-button')){btn.remove()}
+        for(let msg of modal.querySelectorAll('.bloc-message-forum')){msg.classList.remove('quoted-highlighted')}
+
+    }
+
+    //se sert du cache pour retracer l'ensemble des messages qui se répondent dans le topic
+    function citationTree(message,msgPage=document){
+        let cachedPages = GM_getValue(topicId);
+        if(cachedPages == null) return
+        let allCitations= [];
+        let mapMessage = new Map();
+        cachedPages.pages.forEach(page =>{
+            let parser = new DOMParser();
+            let pageP = parser.parseFromString(page.content, "text/html");
+            let pageMap = processMessages(pageP, buildPageIndex(msgPage));
+
+            pageMap.forEach((citArray,msg)=>{
+                if(msg==message){
+                    allCitations = allCitations.concat(citArray);
+                    citArray.forEach(cit=>{
+                        citationTree(cit,pageP);
+                    });
+                }
+            })
+        });
+
+        if(allCitations.length){
+            mapMessage.set(message, allCitations);
+            treeMap = mergeMaps(treeMap, mapMessage);
+        }
+
+    };
+
     //parcourt les pages en cache et fait les relations avec la page courante quand celles-ci la précèdent. Puis appelle la fonction qui append les auteurs
     function citationAuthors(){
-        let cache = GM_getValue("pages");
+        let cache = GM_getValue(topicId);
         if(cache == null) return;
 
         let currentPageId = parseInt(window.location.pathname.split('-')[3]);
         let pageId = 0;
-        cache.forEach(page => {
+        cache.pages.forEach(page => {
             pageId = parseInt(page.url.split('-')[3]);
             if(pageId<=currentPageId)
             {
@@ -135,22 +246,22 @@ async function quoted() {
         });
     }
 
-    //renvoie true si l'utilisateur est toujours sur le même topic quand il change de page
-    function sameTopic(url=GM_getValue('topic')){
-        GM_setValue('topic',window.location.href);
-        if (url==null) return false;
-        let testUrl = window.location.href.replace(/(.*)(\/\d*-\d*-\d*-)(\d*)(.*)/,"$1$2$4").replace(/#post_.*/,'');
-        return (testUrl == url.replace(/(.*)(\/\d*-\d*-\d*-)(\d*)(.*)/,"$1$2$4").replace(/#post_.*/,''));
-    };
-
     //ajoute à l'entrée 'pages' dans le cache un objet avec l'url et le contenu spécifié
     function saveToCache(url,texte){
-        if(GM_getValue('pages')==null)
-            GM_setValue('pages', [{url:url, content : texte}]);
+        url = url.replace(/(.*)(#.*)$/,'$1');
+        if(GM_getValue(topicId)==null){
+            GM_setValue(topicId, {date: Date.now() , pages:[{url:url, content : texte}]});
+        }
         else{
-            let alreadyCached = GM_getValue('pages').filter(page=>page.url==url).length>0;
-            if(!alreadyCached)
-                GM_setValue('pages', GM_getValue('pages').concat({url:url, content : texte}));
+            let alreadyCached = GM_getValue(topicId).pages.filter(page=>page.url==url).length>0;
+            if(!alreadyCached){
+                GM_setValue(topicId, {date:Date.now() , pages:GM_getValue(topicId).pages.concat({url:url, content : texte})});
+            }
+            else{
+                let topic = GM_getValue(topicId);
+                topic.date = Date.now();
+                GM_setValue(topicId, topic);
+            }
         }
     }
 
@@ -218,8 +329,8 @@ async function quoted() {
         let emptyCacheBtn = document.querySelector('#quoted-empty-cache');
 
         emptyCacheBtn.addEventListener('click', ()=>{
-            GM_deleteValue('pages');
-            alert('cache vidé');
+            GM_deleteValue(topicId);
+            alert('cache du topic vidé');
         });
 
         document.addEventListener('click', (e) => {
@@ -314,7 +425,7 @@ async function quoted() {
     function appendCitation(original, msgsC) {
         original.querySelector('.bloc-header').style.height = '5.75rem';
         let header = original.querySelector('.bloc-header');
-
+        mapMessages(original);
         const blocC = document.createElement('div');
         blocC.classList.add('quoted-msg-citations', 'quoted-color');
         blocC.innerHTML = '<span>Cité ' + msgsC.length + ' fois : </span>';
@@ -548,7 +659,7 @@ async function quoted() {
         let nbPagesAParcourir = Math.min(maxPages, currentId + max);
         for (let i = currentId; i < nbPagesAParcourir; i++) {
             splited[3] = ++currentId;
-            pagesIndexed.push({ page: currentId, url: splited.join('-') });
+            pagesIndexed.push({ page: currentId, url: 'https://www.jeuxvideo.com'+splited.join('-') });
         }
         //nbPagesExploreesTotal = pagesIndexed.length + 1;
         return pagesIndexed;
