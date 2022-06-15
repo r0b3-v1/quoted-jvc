@@ -6,7 +6,7 @@
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
 // @icon         https://i.imgur.com/81NbMHq.png
-// @licence       Exclusive Copyrigth
+// @license       Exclusive Copyrigth
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_listValues
