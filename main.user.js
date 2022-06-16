@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      2.0.2
+// @version      2.0.5
 // @description  affiche toutes les citations qui découlent d'un message, avec un lien pour y accéder
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
 // @icon         https://i.imgur.com/81NbMHq.png
-// @license       Exclusive Copyrigth
+// @license      Exclusive Copyrigth
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_listValues
@@ -19,6 +19,8 @@ class Params{
     static cacheLifespan = 300; //temps pendant lequel le topic est gardé en cache en seconde
     static hideAlreadySeenMessages = false; //cache les messages déjà vus via les citations sur la page courante
     static nbLoadedPages = 0; // nombre de pages chargées
+    static hideEveryMessages = true; //cache les messages déjà vu aussi sur les autres pages
+    static nbHiddenMessages = 0; //nombre de messages cachés sur la page
 
     static save(){
         let toBeStored = { pageLimit : Params.pageLimit, hideAlreadySeenMessages : Params.hideAlreadySeenMessages }
@@ -40,6 +42,7 @@ class Helper{
     static timeStart = Date.now();
 
     static debug(name, ...values){
+        if(!Params.devMode) return;
         console.log('___________________________________________________________________ START DEBUG : '+name+'___________________________________________________________________');
         values.forEach(value=>{
             console.log(value);
@@ -118,7 +121,7 @@ class CacheManager {
             let data = GM_getValue(key);
             if((data.date + data.lifespan*1000) <= Date.now()) {
                 GM_deleteValue(key);
-                if(Params.devMode) console.log(key + ' expired');
+                Helper.debug('expirations',key + ' expired');
             }
         });
     }
@@ -127,14 +130,14 @@ class CacheManager {
         GM_listValues().forEach(key => {
             GM_deleteValue(key);
         })
-        if(Params.devMode) console.log('cache cleared');
+        Helper.debug('cache','cache cleared');
     }
 
     static delete(key){
         if(GM_getValue(key))
             GM_deleteValue(key);
         else
-            if(Params.devMode) console.log('CACHE : rien à supprimer pour la clé ' + key);
+            Helper.debug('cache','CACHE : rien à supprimer pour la clé ' + key);
     }
 
     static get(key){
@@ -215,12 +218,12 @@ class Topic{
             tempMessages.forEach(msg => {
                 Topic.messages.push(Helper.HTMLFromString(msg));
             });
-            if(Params.devMode) console.log(tempMessages.length + ' messages loaded from cache');
+            Helper.debug('cache',tempMessages.length + ' messages loaded from cache');
             //maintenant on relance un scan à partir de la dernière page à laquelle on s'était arrêté en prenant en compte l'id du dernier message enregistré
             //await Topic.scan(cached.pagesScanned, Topic.pageNumber, cached.lastMessageId);
             await Topic.scan(cached.pagesScanned, Topic.currentPage + Params.pageLimit, cached.lastMessageId);
             let newMessagesNumber = Topic.messages.length - cached.messages.length;
-            if(Params.devMode) console.log(newMessagesNumber + ' nouveaux messages');
+            Helper.debug('Load',newMessagesNumber + ' nouveaux messages');
         }
         else await Topic.scan(Topic.currentPage);
 
@@ -228,7 +231,7 @@ class Topic{
         let firstPageMessage = document.querySelector('.bloc-message-forum');
         let hasFirstPageMessage = [...Topic.messages].map(msg=>RelationMaker.getId(msg)).indexOf(RelationMaker.getId(firstPageMessage)) !== -1;
         if(!hasFirstPageMessage){
-            if(Params.devMode) console.log('missing messages... page(s) reloaded');
+            Helper.debug('reload','missing messages... page(s) reloaded');
             Topic.messages = [];
             Topic.lastMessageId = 0;
             CacheManager.delete(Topic.id);
@@ -241,7 +244,7 @@ class Topic{
         to = Math.min(from + Params.pageLimit, to);
         //on récupère les urls
         let pagesUrls = Topic.getPagesUrls(from, to);
-
+        Helper.debug('urls', from, to);
         for(let pageUrl of pagesUrls){
             let page = await Topic.fetchPage(pageUrl);
             let parser = new DOMParser();
@@ -257,11 +260,11 @@ class Topic{
 
     //renvoie un tableau des urls dans l'intervalle  spécifié
     static getPagesUrls(from=1, to=Topic.pageNumber){
-        let urls = [];
+        let urls = [window.location.href];// on recharge toujours la page courante
         for(let i = from; i<=to; i++){
             let url = window.location.href.split('-');
             url[3] = i;
-            if(i <= Topic.pageNumber)
+            if(i <= Topic.pageNumber && i != window.location.href.split('-')[3])
                 urls.push(url.join('-'));
         }
         return urls;
@@ -413,7 +416,10 @@ class Display{
         Display.appendCSS();
         Display.modalButton();
         Display.displayLoading();
+
     }
+
+
 
     //experimental
     static appendAllMessages(){
@@ -464,7 +470,11 @@ class Display{
         buttonsDiv.append(emptyCacheBtn, ValiderBtn);
 
         const elementsDiv = Helper.HTMLFromString(`<div class="quoted_options-elements"></div>`);
-        elementsDiv.append(numPageDiv, hideMessagesDiv, buttonsDiv);
+        elementsDiv.append(numPageDiv, hideMessagesDiv);
+
+        if(Params.hideAlreadySeenMessages) elementsDiv.append(Helper.HTMLFromString(`<p class="quoted_hidden">(${Params.nbHiddenMessages} messages cachés)<p>`));
+
+        elementsDiv.append(buttonsDiv);
 
         modal.append(title, elementsDiv);
 
@@ -496,6 +506,7 @@ class Display{
                 Display.buttonMaker(message);
             }
         });
+        if(Params.hideEveryMessages && Params.hideAlreadySeenMessages) Display.hideEveryMessages();
     }
 
     static displayLoading(){
@@ -527,7 +538,7 @@ class Display{
         parentElement.insertBefore(divContainerMessage,message);
         divContainerMessage.append(message,button);
         if (parentElement == document.querySelector('.conteneur-messages-pagi')) divContainerMessage.style.marginBottom = '0.9375rem';
-        
+
         button.addEventListener('click',()=>{
             const container = button.parentElement.querySelector('.quoted_container');
             if(!container) {
@@ -556,6 +567,17 @@ class Display{
             Display.hideMessages(citations);
         }
 
+        if(Params.hideEveryMessages && Params.hideAlreadySeenMessages){
+            let temp = [...citations].map(cit => RelationMaker.getId(cit));
+            let cache = CacheManager.get('hide_'+Topic.id)?.content;
+            if(cache){
+                cache = [...new Set(cache.concat(temp))];
+                CacheManager.save('hide_'+Topic.id, cache, Params.cacheLifespan);
+            }
+            else CacheManager.save('hide_'+Topic.id, temp, Params.cacheLifespan);
+
+        }
+
         citations.forEach(cit => {
             Display.addURLButton(cit);
 
@@ -568,14 +590,20 @@ class Display{
 
     }
 
-    static hideMessages(messages){
+    static hideMessages(messages, fromCache=false){
         messages.forEach(msg=>{
-            let id = RelationMaker.getId(msg);
+            let id = fromCache ? msg : RelationMaker.getId(msg);
             Topic.getMessages().forEach(pageMsg=>{
-                if (RelationMaker.getId(pageMsg) == id && pageMsg.parentElement.classList.contains('conteneur-messages-pagi')) pageMsg.style.display = 'none';
-                else if (RelationMaker.getId(pageMsg) == id && pageMsg.parentElement.parentElement.classList.contains('conteneur-messages-pagi')) pageMsg.parentElement.style.display = 'none';
+                if (RelationMaker.getId(pageMsg) == id && pageMsg.parentElement.classList.contains('conteneur-messages-pagi')) {Params.nbHiddenMessages++ ; pageMsg.style.display = 'none';}
+                else if (RelationMaker.getId(pageMsg) == id && pageMsg.parentElement.parentElement.classList.contains('conteneur-messages-pagi')) {Params.nbHiddenMessages++ ; pageMsg.parentElement.style.display = 'none';}
             })
         });
+    }
+
+
+    static hideEveryMessages(){
+        let messagesToBeHidden = CacheManager.get('hide_'+Topic.id)?.content; // liste des id des messages à cacher
+        if(messagesToBeHidden) Display.hideMessages(messagesToBeHidden, true);
     }
 
     //ajoute le bouton de redirection vers le message
@@ -584,6 +612,7 @@ class Display{
         if(message.querySelector('.quoted_redirection')) return;
 
         let url = await Display.getMessageUrl(message);
+        if(!url) return;
         let page = url.split('-')[3]
         const link = Helper.HTMLFromString(`<a href="${url}" class="quoted_redirection">Aller (page ${page})</a>`);
         message.append(link);
@@ -594,7 +623,7 @@ class Display{
     }
 
     static removeQuote(message){
-        let quotes = message.querySelectorAll('.blockquote-jv');
+        let quotes = message.querySelectorAll('.txt-msg > .blockquote-jv');
         //on retire la quote que si elle est unique, sinon on la laisse pour éviter la confusion si plusieurs messages sont cités
         if(quotes.length == 1){
             for(let quote of quotes){
@@ -604,17 +633,19 @@ class Display{
     }
 
     static async getMessageUrl(message){
-        let messagePageLien = message.querySelector('.bloc-date-msg a').getAttribute('href');
+        let messagePageLien = message.querySelector('.bloc-date-msg a')?.getAttribute('href');
+        if (!messagePageLien) return null;
         let messagePage = await Topic.fetchPage(messagePageLien);
         let parser = new DOMParser();
         let messagePageParsed = parser.parseFromString(messagePage, 'text/html');
-        let messageUrl = messagePageParsed.querySelector('.bloc-return-topic a').getAttribute('href');
+        let messageUrl = messagePageParsed.querySelector('.bloc-return-topic a')?.getAttribute('href');
         return messageUrl;
     }
 
     static appendCSS(){
         var css = `
         html{ scroll-behavior : smooth; }
+        .quoted_hidden{ margin: 0; font-style: italic; }
         .spreadContainer.spreadContainer--rowLayout{ position:relative; }
         .quoted_options{ background:#485783; position:absolute; top:25px; z-index:10; color:white; padding: 1rem; min-height: 150px; display: flex; flex-direction: column; justify-content: space-around; user-select: none; border-radius: 10px; border: 1px solid white;}
         .quoted_options-elements{ display: flex; flex-direction: column; justify-content: space-between; height: 85px; }
@@ -626,7 +657,7 @@ class Display{
         .quoted_btn-container{ width:100%; border:none; transform:translateY(-1px); background:#485783; }
         .quoted_container{ margin-left: 1rem; margin-top: 1rem; border-left: 2px #485783 dashed; }
         .quoted_redirection{ margin-left: 0.5rem;}
-        .quoted_icon{ background: #485783; color: white; padding: 0.25rem 0.5rem; border-radius: 5px; cursor:pointer;}
+        .quoted_icon{ background: #485783; color: white; padding: 0.25rem 0.5rem; border-radius: 5px; cursor:pointer; font-weight: bold}
         .quoted_icon:hover{ background: #3c5fc5; }
         `;
         var style = document.createElement('style');
