@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.0.2
 // @description  affiche toutes les citations qui découlent d'un message, avec un lien pour y accéder
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -415,6 +415,22 @@ class Display{
         Display.displayLoading();
     }
 
+    //experimental
+    static appendAllMessages(){
+
+        let lastPageMessage=Topic.getMessages()[Topic.getMessages().length-1];
+
+        for(let msg of Topic.messages){
+            if(!RelationMaker.relationMap.has(RelationMaker.getId(msg))){
+                if(RelationMaker.getId(msg)>RelationMaker.getId(lastPageMessage)){
+                    lastPageMessage.parentElement.insertBefore(Helper.fixMessageJvCare(msg), lastPageMessage.nextSibling);
+                    lastPageMessage = msg;
+                }
+            }
+        }
+    }
+
+
     static modalButton(){
         const options = document.querySelector('.spreadContainer.spreadContainer--rowLayout');
         const icon = Helper.HTMLFromString(`<span class="quoted_icon">Q</span>`);
@@ -472,6 +488,7 @@ class Display{
     }
 
     static appendCitations(){
+        //Display.appendAllMessages();
         Topic.getMessages().forEach((message)=>{
             if(Display.isQuoted(message)){
                 let citationNumber = RelationMaker.getRelations(message).length;
@@ -506,7 +523,7 @@ class Display{
         //append le bouton comme pour l'autre méthode
         let citationNumber = RelationMaker.getRelations(message).length;
         let button = Helper.HTMLFromString(`<button class="quoted_btn-container">Quoted (cité ${citationNumber} fois)</button>`);
-        let divContainerMessage =Helper.HTMLFromString(`<div id="bloc-quoted_message-${RelationMaker.getId(message)}" class="quoted_msg-container mx-2 mx-lg-0"></div>`);
+        let divContainerMessage =Helper.HTMLFromString(`<div class="quoted_msg-container mx-2 mx-lg-0" id="bloc-quoted_message-${RelationMaker.getId(message)}"></div>`);
         parentElement.insertBefore(divContainerMessage,message);
         divContainerMessage.append(message,button);
         if (parentElement == document.querySelector('.conteneur-messages-pagi')) divContainerMessage.style.marginBottom = '0.9375rem';
@@ -577,8 +594,12 @@ class Display{
     }
 
     static removeQuote(message){
-        for(let quote of message.querySelectorAll('.blockquote-jv')){
-            quote.remove();
+        let quotes = message.querySelectorAll('.blockquote-jv');
+        //on retire la quote que si elle est unique, sinon on la laisse pour éviter la confusion si plusieurs messages sont cités
+        if(quotes.length == 1){
+            for(let quote of quotes){
+                quote.remove();
+            }
         }
     }
 
