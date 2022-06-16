@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      2.0.5
+// @version      2.0.6
 // @description  affiche toutes les citations qui découlent d'un message, avec un lien pour y accéder
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -537,7 +537,6 @@ class Display{
         let divContainerMessage =Helper.HTMLFromString(`<div class="quoted_msg-container mx-2 mx-lg-0" id="bloc-quoted_message-${RelationMaker.getId(message)}"></div>`);
         parentElement.insertBefore(divContainerMessage,message);
         divContainerMessage.append(message,button);
-        if (parentElement == document.querySelector('.conteneur-messages-pagi')) divContainerMessage.style.marginBottom = '0.9375rem';
 
         button.addEventListener('click',()=>{
             const container = button.parentElement.querySelector('.quoted_container');
@@ -643,6 +642,9 @@ class Display{
     }
 
     static appendCSS(){
+
+        if(document.querySelectorAll('.bloc-liste-num-page').length) document.querySelectorAll('.bloc-liste-num-page')[1].style.marginTop = '0.9375rem';
+
         var css = `
         html{ scroll-behavior : smooth; }
         .quoted_hidden{ margin: 0; font-style: italic; }
@@ -654,11 +656,12 @@ class Display{
         .quoted_options-element input{ width:75px; }
         .quoted_options h3{ text-align: center; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid; font-size: 1.25rem; }
         .quoted_loading{ color:#485783; margin-left:1rem; }
-        .quoted_btn-container{ width:100%; border:none; transform:translateY(-1px); background:#485783; }
-        .quoted_container{ margin-left: 1rem; margin-top: 1rem; border-left: 2px #485783 dashed; }
+        .quoted_btn-container{ width:100%; border:none; transform:translateY(-1px); background:#485783}
+        .quoted_container{ margin-left: 1rem; border-left: 2px #485783 dashed; }
         .quoted_redirection{ margin-left: 0.5rem;}
         .quoted_icon{ background: #485783; color: white; padding: 0.25rem 0.5rem; border-radius: 5px; cursor:pointer; font-weight: bold}
         .quoted_icon:hover{ background: #3c5fc5; }
+        .bloc-message-forum{ margin-bottom: 0; margin-top: 0.9375rem;}
         `;
         var style = document.createElement('style');
 
