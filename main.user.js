@@ -506,10 +506,10 @@ class Display{
         //append le bouton comme pour l'autre méthode
         let citationNumber = RelationMaker.getRelations(message).length;
         let button = Helper.HTMLFromString(`<button class="quoted_btn-container">Quoted (cité ${citationNumber} fois)</button>`);
-        let divContenerMessage =Helper.HTMLFromString(`<div class="quoted_msg-container mx-2 mx-lg-0"></div>`);
-        parentElement.insertBefore(divContenerMessage,message);
-        divContenerMessage.append(message,button);
-        if (parentElement == document.querySelector('.conteneur-messages-pagi')) divContenerMessage.style.marginBottom = '0.9375rem';
+        let divContainerMessage =Helper.HTMLFromString(`<div id="bloc-quoted_message-${RelationMaker.getId(message)}" class="quoted_msg-container mx-2 mx-lg-0"></div>`);
+        parentElement.insertBefore(divContainerMessage,message);
+        divContainerMessage.append(message,button);
+        if (parentElement == document.querySelector('.conteneur-messages-pagi')) divContainerMessage.style.marginBottom = '0.9375rem';
         
         button.addEventListener('click',()=>{
             const container = button.parentElement.querySelector('.quoted_container');
