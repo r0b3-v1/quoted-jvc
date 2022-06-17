@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      2.0.7
+// @version      2.0.8
 // @description  affiche toutes les citations qui découlent d'un message, avec un lien pour y accéder
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -379,16 +379,20 @@ class RelationMaker{
         let dates = [];
         let blockQuotes = Array.prototype.slice.call(message.querySelectorAll('.txt-msg > .blockquote-jv'));
         let regFilters = [/\[\d{2}:\d{2}:\d{2}\]\s<.*>/gm,
-                          /\d{2}\s.+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm];
+                          /\d{2}\s\w+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm];
         blockQuotes.forEach(bq => {
             let bqDateBlock = bq.querySelector('p');
-            if(bqDateBlock.textContent.match(regFilters[1])){
-                dates.push(bqDateBlock.textContent.match(regFilters[1])[0]);
-            }
-            else if (bqDateBlock.textContent.match(regFilters[0])){
-                let toBeFormated = bqDateBlock.textContent.match(regFilters[0])[0];
-                let formatedDate = RelationMaker.HMSAToStandard(toBeFormated);
-                dates.push(formatedDate);
+            if(!bqDateBlock) {
+                dates.push(...[...bq.textContent.matchAll(regFilters[1])][0]);}
+            else{
+                if(bqDateBlock.textContent.match(regFilters[1])){
+                    dates.push(bqDateBlock.textContent.match(regFilters[1])[0]);
+                }
+                else if (bqDateBlock.textContent.match(regFilters[0])){
+                    let toBeFormated = bqDateBlock.textContent.match(regFilters[0])[0];
+                    let formatedDate = RelationMaker.HMSAToStandard(toBeFormated);
+                    dates.push(formatedDate);
+                }
             }
         });
         return dates;
@@ -509,6 +513,7 @@ class Display{
         if(Params.hideEveryMessages && Params.hideAlreadySeenMessages) Display.cacheHiddenMessages(citations);
 
         citations.forEach(cit => {
+            if(cit.clientWidth<200) cit.querySelector('.bloc-date-msg').remove();
             Display.addURLButton(cit);
 
             if(Display.isQuoted(cit)) Display.buttonMaker(cit, container);
