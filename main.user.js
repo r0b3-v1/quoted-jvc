@@ -12,7 +12,7 @@
 // @grant        GM_listValues
 // @grant        GM_deleteValue
 // ==/UserScript==
-
+//todo : indiquer s'il y a des citations non lues dans la série quand on actualise
 class Params{
     static devMode = false; //si le script est en mode dev pour le debbuging
     static pageLimit = 20; //nombre max de pages que le script va scanner en une seule fois
@@ -164,26 +164,25 @@ class Topic{
 
     static async init(){
 
-        //test de la page
-        if(!document.querySelector('.conteneur-messages-pagi')) {
-            Params.load();
-            Display.appendCSS();
-            Display.modalButton();
-            return;
-        }
-
         //mise à jour du cache
         CacheManager.init();
 
         //récupération des paramètres de l'utilisateur
         Params.load();
 
+        //test de la page
+        if(!document.querySelector('.conteneur-messages-pagi')) {
+            Display.appendCSS();
+            Display.modalButton();
+            return;
+        }
+
         //les infos du topic
         Topic.id = window.location.href.split('-')[2];
 
         if (Topic.is410()){
             CacheManager.delete(Topic.id);
-            console.log('Topic Deleted');
+            CacheManager.delete('hide_'+Topic.id);
             return;
         }
 
@@ -198,6 +197,7 @@ class Topic{
         //traitement des messages
         RelationMaker.generate(Topic.messages);
 
+        Display.appendCitations();
         Display.removeLoading();
 
         console.log('Quoted loaded');
@@ -321,7 +321,7 @@ class RelationMaker{
         });
 
         RelationMaker.relationMap = RelationMaker.makeRelations(messagesIndexedByDates, messagesQuotedDates);
-        Display.appendCitations();
+
     }
 
     static makeRelations(messagesIndexedByDates, messagesQuotedDates){
@@ -576,12 +576,9 @@ class Display{
     static onCurrentPage(messages){
         if (!messages) return 0;
         let count = 0;
-        console.log(messages);
-        console.log([...Topic.getMessages()].map(msg => RelationMaker.getId(msg)));
         messages.forEach(message => {
             if ([...Topic.getMessages()].map(msg => RelationMaker.getId(msg)).includes(message)) count++;
         });
-        console.log(count);
         return count;
     }
 
