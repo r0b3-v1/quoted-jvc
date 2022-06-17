@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      2.0.6
+// @version      2.0.7
 // @description  affiche toutes les citations qui découlent d'un message, avec un lien pour y accéder
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -278,7 +278,7 @@ class Topic{
     }
 
     static getMessages(page=document){
-        return Array.prototype.slice.call(page.querySelectorAll('.bloc-message-forum'));
+        return Array.prototype.slice.call(page.querySelectorAll('.bloc-message-forum:not(.quoted_ignored)'));
     }
 
     static is410() {
@@ -419,8 +419,6 @@ class Display{
 
     }
 
-
-
     //experimental
     static appendAllMessages(){
 
@@ -437,10 +435,176 @@ class Display{
     }
 
 
+    static appendCitations(){
+        //Display.appendAllMessages();
+        Topic.getMessages().forEach((message)=>{
+            if(Display.isQuoted(message)){
+                let citationNumber = RelationMaker.getRelations(message).length;
+                //Display.createModalButton(message, citationNumber);
+                Display.buttonMaker(message);
+            }
+        });
+        if(Params.hideEveryMessages && Params.hideAlreadySeenMessages) Display.hideEveryMessages();
+    }
+
+    static displayLoading(){
+        for (let message of Topic.getMessages()){
+            let loader = Helper.HTMLFromString(`<em class="quoted_loading">Chargement des citations, 0 pages chargées</em>`)
+            message.append(loader);
+            setInterval(()=>{loader.innerHTML = `Chargement des citations, ${Params.nbLoadedPages} pages chargées`; },1000);
+        }
+    }
+
+    static removeLoading(){
+        for (let loadingMessage of document.querySelectorAll('.quoted_loading')){
+            loadingMessage.remove();
+        }
+        // Get a reference to the last interval + 1
+        const interval_id = window.setInterval(function(){}, Number.MAX_SAFE_INTEGER);
+
+        // Clear any timeout/interval up to that id
+        for (let i = 1; i < interval_id; i++) {
+            window.clearInterval(i);
+        }
+    }
+
+    static buttonMaker(message, parentElement = document.querySelector('.conteneur-messages-pagi')){
+        //append le bouton comme pour l'autre méthode
+        let citationNumber = RelationMaker.getRelations(message).length;
+        let button = Helper.HTMLFromString(`<button class="quoted_btn-container">Quoted (cité ${citationNumber} fois)</button>`);
+
+        let divContainerMessage =Helper.HTMLFromString(`<div class="quoted_msg-container mx-2 mx-lg-0" id="bloc-quoted_message-${RelationMaker.getId(message)}"></div>`);
+        parentElement.insertBefore(divContainerMessage,message);
+        divContainerMessage.append(message,button);
+
+        button.addEventListener('click',()=>{
+            const container = button.parentElement.querySelector('.quoted_container');
+            if(!container) {
+                Display.containerMaker(message);
+                button.innerHTML += ' ▼';
+            }
+            else {
+                container.remove();
+                button.innerHTML = button.innerHTML.replace('▼','');
+            }
+            let divHidden = document.querySelector('.quoted_hidden-display');
+            divHidden.innerHTML = Params.nbHiddenMessages;
+            if(Params.nbHiddenMessages > 0) divHidden.style.display = 'block';
+        });
+
+        //CSS
+        message.classList.remove('mx-2', 'mx-lg-0');
+        message.style.marginBottom = 0;
+    }
+
+    //crée le conteneur pour les messages en citation et y ajoute les messages
+    static containerMaker(message){
+        const container = Helper.HTMLFromString(`<div class="quoted_container"></div>`);
+        message.parentElement.append(container);
+        let citations = RelationMaker.getRelations(message).map(msg=>{Display.removeQuote(msg);msg.classList.add('quoted_ignored'); return Helper.fixMessageJvCare(msg)});
+        container.append(...citations);
+
+        if(Params.hideAlreadySeenMessages) Display.hideMessages(citations);
+
+        if(Params.hideEveryMessages && Params.hideAlreadySeenMessages) Display.cacheHiddenMessages(citations);
+
+        citations.forEach(cit => {
+            Display.addURLButton(cit);
+
+            if(Display.isQuoted(cit)) Display.buttonMaker(cit, container);
+        });
+
+        //CSS
+        message.parentElement.style.position = "relative";
+
+    }
+
+    static cacheHiddenMessages(citations){
+        let temp = [...citations].map(cit => RelationMaker.getId(cit));
+        let cache = CacheManager.get('hide_'+Topic.id)?.content;
+        if(cache){
+            cache = [...new Set(cache.concat(temp))];
+            CacheManager.save('hide_'+Topic.id, cache, Params.cacheLifespan);
+        }
+        else CacheManager.save('hide_'+Topic.id, temp, Params.cacheLifespan);
+        Params.nbHiddenMessages = Display.onCurrentPage(CacheManager.get('hide_'+Topic.id)?.content);
+    }
+
+    static hideMessages(messages, fromCache=false){
+        messages.forEach(msg=>{
+            let id = fromCache ? msg : RelationMaker.getId(msg);
+            Topic.getMessages().forEach(pageMsg=>{
+                if (RelationMaker.getId(pageMsg) == id && pageMsg.parentElement.classList.contains('conteneur-messages-pagi')) {Display.cacheHiddenMessages([pageMsg]) ; pageMsg.style.display = 'none';}
+                else if (RelationMaker.getId(pageMsg) == id && pageMsg.parentElement.parentElement.classList.contains('conteneur-messages-pagi')) {Display.cacheHiddenMessages([pageMsg]) ; pageMsg.parentElement.style.display = 'none';}
+            })
+        });
+    }
+
+
+    static hideEveryMessages(){
+        let messagesToBeHidden = CacheManager.get('hide_'+Topic.id)?.content; // liste des id des messages à cacher
+        if(messagesToBeHidden) Display.hideMessages(messagesToBeHidden, true);
+    }
+
+    //ajoute le bouton de redirection vers le message
+    static async addURLButton(message){
+        // test si le bouton est déjà présent
+        if(message.querySelector('.quoted_redirection')) return;
+
+        let url = await Display.getMessageUrl(message);
+        if(!url) return;
+        let page = url.split('-')[3]
+        const link = Helper.HTMLFromString(`<a href="${url}" class="quoted_redirection">Aller (page ${page})</a>`);
+        message.append(link);
+    }
+
+    static isQuoted(message){
+        return RelationMaker.relationMap.has(RelationMaker.getId(message));
+    }
+
+    static removeQuote(message){
+        let quotes = message.querySelectorAll('.txt-msg > .blockquote-jv');
+        //on retire la quote que si elle est unique, sinon on la laisse pour éviter la confusion si plusieurs messages sont cités
+        if(quotes.length == 1){
+            for(let quote of quotes){
+                quote.remove();
+            }
+        }
+    }
+
+    //renvoie le nombre de messages de la liste qui sont présents sur la page courante
+    static onCurrentPage(messages){
+        if (!messages) return 0;
+        let count = 0;
+        console.log(messages);
+        console.log([...Topic.getMessages()].map(msg => RelationMaker.getId(msg)));
+        messages.forEach(message => {
+            if ([...Topic.getMessages()].map(msg => RelationMaker.getId(msg)).includes(message)) count++;
+        });
+        console.log(count);
+        return count;
+    }
+
+    static async getMessageUrl(message){
+        let messagePageLien = message.querySelector('.bloc-date-msg a')?.getAttribute('href');
+        if (!messagePageLien) return null;
+        let messagePage = await Topic.fetchPage(messagePageLien);
+        let parser = new DOMParser();
+        let messagePageParsed = parser.parseFromString(messagePage, 'text/html');
+        let messageUrl = messagePageParsed.querySelector('.bloc-return-topic a')?.getAttribute('href');
+        return messageUrl;
+    }
+
     static modalButton(){
+        Params.nbHiddenMessages = Display.onCurrentPage(CacheManager.get('hide_'+Topic.id)?.content) ?? 0;
         const options = document.querySelector('.spreadContainer.spreadContainer--rowLayout');
         const icon = Helper.HTMLFromString(`<span class="quoted_icon">Q</span>`);
         options.append(icon);
+        if(Params.hideAlreadySeenMessages) {
+            let divHidden = Helper.HTMLFromString(`<div class="quoted_hidden-display">${Params.nbHiddenMessages}</div>`);
+            icon.append(divHidden);
+            if(Params.nbHiddenMessages == 0) divHidden.style.display = 'none';
+        }
         icon.addEventListener('click', ()=>{
             const modal = document.querySelector('.quoted_options');
             if(!modal)
@@ -497,149 +661,6 @@ class Display{
         return modal;
     }
 
-    static appendCitations(){
-        //Display.appendAllMessages();
-        Topic.getMessages().forEach((message)=>{
-            if(Display.isQuoted(message)){
-                let citationNumber = RelationMaker.getRelations(message).length;
-                //Display.createModalButton(message, citationNumber);
-                Display.buttonMaker(message);
-            }
-        });
-        if(Params.hideEveryMessages && Params.hideAlreadySeenMessages) Display.hideEveryMessages();
-    }
-
-    static displayLoading(){
-        for (let message of Topic.getMessages()){
-            let loader = Helper.HTMLFromString(`<em class="quoted_loading">Chargement des citations, 0 pages chargées</em>`)
-            message.append(loader);
-            setInterval(()=>{loader.innerHTML = `Chargement des citations, ${Params.nbLoadedPages} pages chargées`; },1000);
-        }
-    }
-
-    static removeLoading(){
-        for (let loadingMessage of document.querySelectorAll('.quoted_loading')){
-            loadingMessage.remove();
-        }
-        // Get a reference to the last interval + 1
-        const interval_id = window.setInterval(function(){}, Number.MAX_SAFE_INTEGER);
-
-        // Clear any timeout/interval up to that id
-        for (let i = 1; i < interval_id; i++) {
-            window.clearInterval(i);
-        }
-    }
-
-    static buttonMaker(message, parentElement = document.querySelector('.conteneur-messages-pagi')){
-        //append le bouton comme pour l'autre méthode
-        let citationNumber = RelationMaker.getRelations(message).length;
-        let button = Helper.HTMLFromString(`<button class="quoted_btn-container">Quoted (cité ${citationNumber} fois)</button>`);
-        let divContainerMessage =Helper.HTMLFromString(`<div class="quoted_msg-container mx-2 mx-lg-0" id="bloc-quoted_message-${RelationMaker.getId(message)}"></div>`);
-        parentElement.insertBefore(divContainerMessage,message);
-        divContainerMessage.append(message,button);
-
-        button.addEventListener('click',()=>{
-            const container = button.parentElement.querySelector('.quoted_container');
-            if(!container) {
-                Display.containerMaker(message);
-                button.innerHTML += ' ▼';
-            }
-            else {
-                container.remove();
-                button.innerHTML = button.innerHTML.replace('▼','');
-            }
-        });
-
-        //CSS
-        message.classList.remove('mx-2', 'mx-lg-0');
-        message.style.marginBottom = 0;
-    }
-
-    //crée le conteneur pour les messages en citation et y ajoute les messages
-    static containerMaker(message){
-        const container = Helper.HTMLFromString(`<div class="quoted_container"></div>`);
-        message.parentElement.append(container);
-        let citations = RelationMaker.getRelations(message).map(msg=>{Display.removeQuote(msg); return Helper.fixMessageJvCare(msg)});
-        container.append(...citations);
-
-        if(Params.hideAlreadySeenMessages){
-            Display.hideMessages(citations);
-        }
-
-        if(Params.hideEveryMessages && Params.hideAlreadySeenMessages){
-            let temp = [...citations].map(cit => RelationMaker.getId(cit));
-            let cache = CacheManager.get('hide_'+Topic.id)?.content;
-            if(cache){
-                cache = [...new Set(cache.concat(temp))];
-                CacheManager.save('hide_'+Topic.id, cache, Params.cacheLifespan);
-            }
-            else CacheManager.save('hide_'+Topic.id, temp, Params.cacheLifespan);
-
-        }
-
-        citations.forEach(cit => {
-            Display.addURLButton(cit);
-
-            if(Display.isQuoted(cit))
-                Display.buttonMaker(cit, container);
-        });
-
-        //CSS
-        message.parentElement.style.position = "relative";
-
-    }
-
-    static hideMessages(messages, fromCache=false){
-        messages.forEach(msg=>{
-            let id = fromCache ? msg : RelationMaker.getId(msg);
-            Topic.getMessages().forEach(pageMsg=>{
-                if (RelationMaker.getId(pageMsg) == id && pageMsg.parentElement.classList.contains('conteneur-messages-pagi')) {Params.nbHiddenMessages++ ; pageMsg.style.display = 'none';}
-                else if (RelationMaker.getId(pageMsg) == id && pageMsg.parentElement.parentElement.classList.contains('conteneur-messages-pagi')) {Params.nbHiddenMessages++ ; pageMsg.parentElement.style.display = 'none';}
-            })
-        });
-    }
-
-
-    static hideEveryMessages(){
-        let messagesToBeHidden = CacheManager.get('hide_'+Topic.id)?.content; // liste des id des messages à cacher
-        if(messagesToBeHidden) Display.hideMessages(messagesToBeHidden, true);
-    }
-
-    //ajoute le bouton de redirection vers le message
-    static async addURLButton(message){
-        // test si le bouton est déjà présent
-        if(message.querySelector('.quoted_redirection')) return;
-
-        let url = await Display.getMessageUrl(message);
-        if(!url) return;
-        let page = url.split('-')[3]
-        const link = Helper.HTMLFromString(`<a href="${url}" class="quoted_redirection">Aller (page ${page})</a>`);
-        message.append(link);
-    }
-
-     static isQuoted(message){
-        return RelationMaker.relationMap.has(RelationMaker.getId(message));
-    }
-
-    static removeQuote(message){
-        let quotes = message.querySelectorAll('.txt-msg > .blockquote-jv');
-        //on retire la quote que si elle est unique, sinon on la laisse pour éviter la confusion si plusieurs messages sont cités
-        if(quotes.length == 1){
-            for(let quote of quotes){
-                quote.remove();
-            }
-        }
-    }
-
-    static async getMessageUrl(message){
-        let messagePageLien = message.querySelector('.bloc-date-msg a')?.getAttribute('href');
-        if (!messagePageLien) return null;
-        let messagePage = await Topic.fetchPage(messagePageLien);
-        let parser = new DOMParser();
-        let messagePageParsed = parser.parseFromString(messagePage, 'text/html');
-        let messageUrl = messagePageParsed.querySelector('.bloc-return-topic a')?.getAttribute('href');
-        return messageUrl;
-    }
 
     static appendCSS(){
 
@@ -647,6 +668,7 @@ class Display{
 
         var css = `
         html{ scroll-behavior : smooth; }
+        .quoted_hidden-display{ position: absolute; top: -8px; right: -7px; background: #ff4800; padding: 0 0.25rem; border-radius: 4px; }
         .quoted_hidden{ margin: 0; font-style: italic; }
         .spreadContainer.spreadContainer--rowLayout{ position:relative; }
         .quoted_options{ background:#485783; position:absolute; top:25px; z-index:10; color:white; padding: 1rem; min-height: 150px; display: flex; flex-direction: column; justify-content: space-around; user-select: none; border-radius: 10px; border: 1px solid white;}
@@ -659,7 +681,7 @@ class Display{
         .quoted_btn-container{ width:100%; border:none; transform:translateY(-1px); background:#485783}
         .quoted_container{ margin-left: 1rem; border-left: 2px #485783 dashed; }
         .quoted_redirection{ margin-left: 0.5rem;}
-        .quoted_icon{ background: #485783; color: white; padding: 0.25rem 0.5rem; border-radius: 5px; cursor:pointer; font-weight: bold}
+        .quoted_icon{ background: #485783; color: white; padding: 0.25rem 0.5rem; border-radius: 5px; cursor:pointer; font-weight: bold; position: relative; }
         .quoted_icon:hover{ background: #3c5fc5; }
         .bloc-message-forum{ margin-bottom: 0; margin-top: 0.9375rem;}
         `;
