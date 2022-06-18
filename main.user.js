@@ -383,7 +383,8 @@ class RelationMaker{
         blockQuotes.forEach(bq => {
             let bqDateBlock = bq.querySelector('p');
             if(!bqDateBlock) {
-                dates.push(...[...bq.textContent.matchAll(regFilters[1])][0]);}
+                let result = [...bq.textContent.matchAll(regFilters[1])][0];
+                if(result) dates.push(...result);}
             else{
                 if(bqDateBlock.textContent.match(regFilters[1])){
                     dates.push(bqDateBlock.textContent.match(regFilters[1])[0]);
@@ -572,7 +573,7 @@ class Display{
         //on retire la quote que si elle est unique, sinon on la laisse pour éviter la confusion si plusieurs messages sont cités
         if(quotes.length == 1){
             for(let quote of quotes){
-                quote.remove();
+                quote.style.display = 'none';
             }
         }
     }
@@ -697,6 +698,45 @@ class Display{
 
         document.getElementsByTagName('head')[0].appendChild(style);
     }
+
+}
+
+class Fix{
+
+    static init(){
+
+    }
+
+    static citationButton(message){
+
+        const button = message.querySelector('.picto-msg-quote');
+        const textEditor = document.querySelector('#message_topic');
+        const text = message.querySelector('.txt-msg');
+        const date = message.querySelector('.bloc-date-msg').textContent.trim();
+        const pseudo = message.querySelector('.bloc-pseudo-msg').textContent.trim();
+        let textEditorY = textEditor.getBoundingClientRect().top;
+        let textBase = [...message.querySelectorAll('.txt-msg > *:not(.blockquote-jv)')].map(ele => Fix.extractFromText(ele)).join('\n')
+
+        button.addEventListener('click', ()=>{
+            document.querySelector('#bloc-formulaire-forum').scrollIntoView();
+            textEditor.innerHTML += (textEditor.innerHTML=='' ? '' : '\n') + '>Le ' + date + ' ' + pseudo +' a écrit :\n>' + textBase + '\n\n';
+
+        })
+
+    }
+
+    static extractFromText(ele){
+        let text = '';
+        if(ele.nodeName == 'P'){
+            for(let node of ele.childNodes){
+                if (node.nodeName == '#text') text += node.textContent;
+                if (node.nodeName == 'BR') text += '\n';
+                if (node.nodeName == 'A') text += node.querySelector('img').getAttribute('alt');
+            }
+        }
+        return text;
+    }
+
 
 }
 
