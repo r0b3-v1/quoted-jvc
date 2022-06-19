@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      2.0.8
+// @version      2.1.0
 // @description  affiche toutes les citations qui découlent d'un message, avec un lien pour y accéder
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -516,6 +516,7 @@ class Display{
         citations.forEach(cit => {
             if(cit.clientWidth<200) cit.querySelector('.bloc-date-msg').remove();
             Display.addURLButton(cit);
+            Fix.buttons(cit);
 
             if(Display.isQuoted(cit)) Display.buttonMaker(cit, container);
         });
@@ -701,43 +702,39 @@ class Display{
 
 }
 
-class Fix{
+//pour faire fonctionner les scripts de jvc qui ne sont pas récupérés lors de la copie des messages
+class Fix {
 
-    static init(){
+    static buttons(message){
+        let parent = message.querySelector('.bloc-options-msg');
+        let buttons = ['quote','tronche'];
+
+        buttons.forEach(button =>{
+            let messageBtn = message.querySelector('.picto-msg-'+button);
+            let firstMessageBtn = document.querySelector('.picto-msg-'+button+':not(.deboucled-blacklist-jvc-button)');
+            let firstMsg = firstMessageBtn.parentElement;
+            let firstBtnNext = firstMessageBtn.nextSibling;
+
+            messageBtn.addEventListener('click', function(){
+
+                let temp = firstMessageBtn.getAttribute('data-id-alias');
+                if(temp) firstMessageBtn.setAttribute('data-id-alias',messageBtn.getAttribute('data-id-alias'));
+
+                parent.insertBefore(firstMessageBtn, messageBtn);
+                firstMsg.insertBefore(messageBtn, firstBtnNext);
+
+                firstMessageBtn.click();
+
+                parent.insertBefore(messageBtn, firstMessageBtn);
+                firstMsg.insertBefore(firstMessageBtn, firstBtnNext);
+
+                if(temp) firstMessageBtn.setAttribute('data-id-alias',temp);
+            })
+        });
 
     }
-
-    static citationButton(message){
-
-        const button = message.querySelector('.picto-msg-quote');
-        const textEditor = document.querySelector('#message_topic');
-        const text = message.querySelector('.txt-msg');
-        const date = message.querySelector('.bloc-date-msg').textContent.trim();
-        const pseudo = message.querySelector('.bloc-pseudo-msg').textContent.trim();
-        let textEditorY = textEditor.getBoundingClientRect().top;
-        let textBase = [...message.querySelectorAll('.txt-msg > *:not(.blockquote-jv)')].map(ele => Fix.extractFromText(ele)).join('\n')
-
-        button.addEventListener('click', ()=>{
-            document.querySelector('#bloc-formulaire-forum').scrollIntoView();
-            textEditor.innerHTML += (textEditor.innerHTML=='' ? '' : '\n') + '>Le ' + date + ' ' + pseudo +' a écrit :\n>' + textBase + '\n\n';
-
-        })
-
-    }
-
-    static extractFromText(ele){
-        let text = '';
-        if(ele.nodeName == 'P'){
-            for(let node of ele.childNodes){
-                if (node.nodeName == '#text') text += node.textContent;
-                if (node.nodeName == 'BR') text += '\n';
-                if (node.nodeName == 'A') text += node.querySelector('img').getAttribute('alt');
-            }
-        }
-        return text;
-    }
-
 
 }
+
 
 Topic.init();
