@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      2.1.0
+// @version      2.1.1
 // @description  affiche toutes les citations qui découlent d'un message, avec un lien pour y accéder
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -379,7 +379,7 @@ class RelationMaker{
         let dates = [];
         let blockQuotes = Array.prototype.slice.call(message.querySelectorAll('.txt-msg > .blockquote-jv'));
         let regFilters = [/\[\d{2}:\d{2}:\d{2}\]\s<.*>/gm,
-                          /\d{2}\s\w+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm];
+                          /\d{2}\s[é|û|\w]+\s\d{4}\sà\s\d{2}:\d{2}:\d{2}/gm];
         blockQuotes.forEach(bq => {
             let bqDateBlock = bq.querySelector('p');
             if(!bqDateBlock) {
