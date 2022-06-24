@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quoted
 // @namespace    http://tampermonkey.net/
-// @version      2.1.1
+// @version      2.1.2
 // @description  affiche toutes les citations qui découlent d'un message, avec un lien pour y accéder
 // @author       Dereliction
 // @match        https://www.jeuxvideo.com/forums/*
@@ -199,6 +199,7 @@ class Topic{
 
         Display.appendCitations();
         Display.removeLoading();
+        //Display.displayAllMessagesFromSameAuthor();
 
         console.log('Quoted loaded');
 
@@ -439,6 +440,27 @@ class Display{
         }
     }
 
+    //expérimental
+    static displayAllMessagesFromSameAuthor(){
+        Topic.getMessages().forEach(message => {
+            let button = Helper.HTMLFromString(`<button>Voir tous les messages de ce pseudo</button>`);
+            message.append(button);
+            let author = RelationMaker.getAuthor(message);
+            let first = document.querySelector('.bloc-pagi-default');
+            let messagesFromAuthor = [...Topic.messages].filter(msg => RelationMaker.getAuthor(msg) == author);
+            button.addEventListener('click', ()=>{
+                for(let msg of document.querySelectorAll('.conteneur-messages-pagi > .bloc-message-forum')){
+                    msg.style.display = 'none';
+                }
+                for(let msgQ of document.querySelectorAll('.conteneur-messages-pagi > .quoted_msg-container')){
+                    msgQ.style.display = 'none';
+                }
+                for(let msg of messagesFromAuthor.reverse()){
+                    document.querySelector('.conteneur-messages-pagi').insertBefore(Helper.fixMessageJvCare(msg), first.nextSibling);
+                }
+            });
+        });
+    }
 
     static appendCitations(){
         //Display.appendAllMessages();
@@ -506,7 +528,7 @@ class Display{
     static containerMaker(message){
         const container = Helper.HTMLFromString(`<div class="quoted_container"></div>`);
         message.parentElement.append(container);
-        let citations = RelationMaker.getRelations(message).map(msg=>{Display.removeQuote(msg);msg.classList.add('quoted_ignored'); return Helper.fixMessageJvCare(msg)});
+        let citations = RelationMaker.getRelations(message).map(msg=>{Display.removeQuote(msg);msg.classList.add('quoted_ignored'); return Helper.fixMessageJvCare(msg.cloneNode(true))});
         container.append(...citations);
 
         if(Params.hideAlreadySeenMessages) Display.hideMessages(citations);
